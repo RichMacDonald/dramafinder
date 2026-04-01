@@ -24,7 +24,7 @@ public interface HasValueElement extends HasLocatorElement {
      */
     default void setValue(String value) {
         getInputLocator().fill(value);
-        getLocator().dispatchEvent("change");
+        getLocator().dispatchEvent("change"); //RJM. Why the need for this? The fill method is supposed to trigger a change event. Note: I also see issues with reliable triggering. Only solid solution is to click the Body element.
     }
 
     /** Clear the input value. */

@@ -42,3 +42,5 @@ package.json
 
 .vscode/.copilot-plugin
 .vscode/launch.json
+/bin/
+/.classpath

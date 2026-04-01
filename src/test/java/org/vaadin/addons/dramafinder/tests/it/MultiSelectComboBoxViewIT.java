@@ -160,7 +160,7 @@ public class MultiSelectComboBoxViewIT extends SpringPlaywrightIT {
     @Test
     public void testFilterAndSelect() {
         MultiSelectComboBoxElement comboBox = MultiSelectComboBoxElement.getByLabel(page, "Filterable MultiSelect");
-        comboBox.filterAndSelectItem("Apr", "Apricot");
+        comboBox.filterAndToggleItem("Apr", "Apricot");
         comboBox.close();
         comboBox.assertSelectedCount(1);
     }
@@ -207,7 +207,7 @@ public class MultiSelectComboBoxViewIT extends SpringPlaywrightIT {
     @Test
     public void testLazyFilterAndSelect() {
         MultiSelectComboBoxElement comboBox = MultiSelectComboBoxElement.getByLabel(page, "Lazy MultiSelect");
-        comboBox.filterAndSelectItem("Item 250", "Item 250");
+        comboBox.filterAndToggleItem("Item 250", "Item 250");
         comboBox.close();
         comboBox.assertSelectedCount(1);
         assertThat(page.locator("#lazy-selected-value")).hasText("Item 250");

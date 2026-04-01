@@ -3,6 +3,7 @@ package org.vaadin.addons.dramafinder.element;
 import java.util.Map;
 
 import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.assertions.LocatorAssertions.IsVisibleOptions;
 import org.vaadin.addons.dramafinder.element.shared.HasLocatorElement;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
@@ -31,6 +32,13 @@ public abstract class VaadinElement implements HasLocatorElement {
      */
     public void click() {
         locator.click();
+    }
+
+    /**
+     * Double-Click the component root.
+     */
+    public void dblclick() {
+        locator.dblclick();
     }
 
     /**
@@ -78,10 +86,27 @@ public abstract class VaadinElement implements HasLocatorElement {
     }
 
     /**
+     * Whether the component is visible, as an argument.
+     *
+     * @return {@code true} when visible
+     */
+    public boolean isVisible(boolean isVisible) {
+        return isVisible == locator.isVisible();
+    }
+
+    /**
      * Assert that the component is visible.
      */
     public void assertVisible() {
         assertThat(getLocator()).isVisible();
+    }
+
+    /**
+     * Assert that the component is visible, as an argument.
+     */
+    public void assertVisible(boolean isVisible) {
+  				IsVisibleOptions options = new IsVisibleOptions().setVisible(isVisible);
+        assertThat(getLocator()).isVisible(options);
     }
 
     /**

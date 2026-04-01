@@ -1,8 +1,9 @@
 package org.vaadin.addons.dramafinder.element;
 
-import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.options.AriaRole;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAllowedCharPatternElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
@@ -14,8 +15,9 @@ import org.vaadin.addons.dramafinder.element.shared.HasPrefixElement;
 import org.vaadin.addons.dramafinder.element.shared.HasThemeElement;
 import org.vaadin.addons.dramafinder.element.shared.HasTooltipElement;
 import org.vaadin.addons.dramafinder.element.shared.HasValidationPropertiesElement;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 
 /**
  * PlaywrightElement for {@code <vaadin-combo-box>}.
@@ -83,12 +85,14 @@ public class ComboBoxElement extends VaadinElement
     /**
      * Select an item by its visible label.
      * Opens the overlay, clicks the matching item.
+     * RJM: Ought to be named toggleItem()
      *
      * @param item label of the item to select
      */
     public void selectItem(String item) {
         open();
         getOverlayItem(item).click();
+        close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
     }
 
     /**
@@ -99,7 +103,21 @@ public class ComboBoxElement extends VaadinElement
      */
     public void filterAndSelectItem(String filter, String item) {
         setFilter(filter);
-        getOverlayItem(item).click();
+        getOverlayItem(item).click(); //if there are multiple matches, it picks the first one.
+        close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
+    }
+
+    /**
+     * Type filter text into the input, then click the matching item.
+     * The text is an exact match
+     *
+     * @param filter text to type for filtering
+     * @param item   label of the item to select
+     */
+    public void filterAndSelectExactItem(String filter, String item) {
+        setFilter(filter);
+        getOverlayItemExact(item).click();
+        close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
     }
 
     /**
@@ -110,6 +128,7 @@ public class ComboBoxElement extends VaadinElement
      * @param filter the filter text
      */
     public void setFilter(String filter) {
+    			clear(); //RJM: Otherwise, this just appends to whatever is already selected
         open();
         getInputLocator().pressSequentially(filter);
     }
@@ -201,12 +220,23 @@ public class ComboBoxElement extends VaadinElement
     }
 
     /**
-     * Count visible overlay items.
+     * Count visible overlay items. (Should be renamed to getVisibleOverlayItemCount)
      *
      * @return the number of visible items
      */
     public int getOverlayItemCount() {
-        return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").count();
+        return getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").count();
+    }
+
+    /**
+     * Count overlay items.
+     * (Must be sure to have called open() so that the list is lazily downloaded.)
+     *
+     * @return the number of visible items
+     */
+    public int getAllOverlayItemCount() {
+    			ensureOpenedOnce();
+        return getLocator().locator(FIELD_ITEM_TAG_NAME).count(); //Use the Locator, not the page, otherwise you get all the other ComboBox values as well
     }
 
     /**
@@ -215,7 +245,7 @@ public class ComboBoxElement extends VaadinElement
      * @param expected expected item count
      */
     public void assertItemCount(int expected) {
-        assertThat(getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")).hasCount(expected);
+        assertThat(getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")).hasCount(expected);
     }
 
     /**
@@ -248,9 +278,77 @@ public class ComboBoxElement extends VaadinElement
                         .first());
     }
 
+    //Caution: This uses inexact matching and selects the first.
     private Locator getOverlayItem(String label) {
-        return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+        return getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
                 .filter(new Locator.FilterOptions()
                         .setHasText(label)).first();
+    }
+
+    //Force an exact match
+    private Locator getOverlayItemExact(String label) {
+    	Pattern exactMatch = Pattern.compile("^" + label + "$");
+        return getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+            .filter(new Locator.FilterOptions()
+                    .setHasText(exactMatch)).first();
+    }
+
+    //The widget may only download a subset of values. If this needs to be tested, setPageSize(veryLarge)
+    //It also needs to be opened once to download the values.
+    //Nope: Even after all that, it displays a scrollable list rather than a non-scrollable list,
+    //but it still only shows a subset in the DOM (about 26)
+    //Note that this ignore the filter value. If you want the filtered list, call getVisibleValues()
+    @Deprecated //cannot be relied on
+    public List<String> getAllowableValues() {
+	    	boolean currentlyClosed = !isOpened();
+	    	if (currentlyClosed) {
+	    		open();
+	    	}
+	    	List<String> answer = getLocator().locator(FIELD_ITEM_TAG_NAME).all()
+	    			.stream()
+	    			.map(Locator::textContent)
+	    			.toList();
+	    	if (currentlyClosed) {
+	    		close();
+	    	}
+	    	return answer;
+    }
+
+    /**
+     * Not visible as in "currently isOpened", but the list of items that will show when opened.
+     * This is reliable after setting a filter, but (could be) incomplete is the list is large
+     * and has not been fully downloaded.
+     */
+    public List<String> getVisibleValues() {
+	    	boolean currentlyClosed = !isOpened();
+	    	if (currentlyClosed) {
+	    		open();
+	    	}
+	    	List<String> answer = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").all()
+	    			.stream()
+	    			.map(Locator::textContent)
+	    			.toList();
+	    	if (currentlyClosed) {
+	    		close();
+	    	}
+	    	return answer;
+	  }
+
+    /**
+     * Does the list contain this item?
+     * Need to open and filter to ensure it gets downloaded from a large lazy list
+     *
+     * @param item label of the item to select
+     */
+    public boolean containsItem(String item) {
+        setFilter(item);
+        return getAllowableValues().contains(item);
+    }
+
+    private void ensureOpenedOnce() {
+    		if (!isOpened()) {
+    			open();
+    			close();
+    		}
     }
 }

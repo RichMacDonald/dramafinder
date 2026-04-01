@@ -1,17 +1,17 @@
 package org.vaadin.addons.dramafinder.element;
 
-import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.options.AriaRole;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
+import org.vaadin.addons.dramafinder.element.shared.HasEnabledCustomElement;
 import org.vaadin.addons.dramafinder.element.shared.HasStyleElement;
 import org.vaadin.addons.dramafinder.element.shared.HasThemeElement;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.options.AriaRole;
 
 /**
  * PlaywrightElement for individual menu items {@code <vaadin-menu-bar-button>}.
  */
-public class MenuItemElement extends VaadinElement implements HasThemeElement, HasStyleElement, HasAriaLabelElement {
+public class MenuItemElement extends VaadinElement implements HasThemeElement, HasStyleElement, HasAriaLabelElement, HasEnabledCustomElement {
 
     public static final String FIELD_TAG_NAME = "vaadin-menu-bar-button";
 
