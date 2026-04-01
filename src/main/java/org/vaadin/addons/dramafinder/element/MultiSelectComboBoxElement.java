@@ -30,410 +30,525 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
  */
 @PlaywrightElement(MultiSelectComboBoxElement.FIELD_TAG_NAME)
 public class MultiSelectComboBoxElement extends VaadinElement
-        implements FocusableElement, HasAriaLabelElement, HasInputFieldElement,
-        HasThemeElement, HasPlaceholderElement,
-        HasEnabledElement, HasTooltipElement, HasValidationPropertiesElement,
-        HasClearButtonElement, HasAllowedCharPatternElement {
+    implements FocusableElement,HasAriaLabelElement,HasInputFieldElement,
+    HasThemeElement,HasPlaceholderElement,
+    HasEnabledElement,HasTooltipElement,HasValidationPropertiesElement,
+    HasClearButtonElement,HasAllowedCharPatternElement {
 
-    public static final String FIELD_TAG_NAME = "vaadin-multi-select-combo-box";
-    public static final String FIELD_ITEM_TAG_NAME = "vaadin-multi-select-combo-box-item";
-    public static final String FIELD_CHIP_TAG_NAME = "vaadin-multi-select-combo-box-chip";
+	public static final String FIELD_TAG_NAME = "vaadin-multi-select-combo-box";
+	public static final String FIELD_ITEM_TAG_NAME = "vaadin-multi-select-combo-box-item";
+	public static final String FIELD_CHIP_TAG_NAME = "vaadin-multi-select-combo-box-chip";
 
-    /**
-     * Create a new {@code MultiSelectComboBoxElement}.
-     *
-     * @param locator the locator for the {@code <vaadin-multi-select-combo-box>} element
-     */
-    public MultiSelectComboBoxElement(Locator locator) {
-        super(locator);
-    }
+	/**
+	 * Create a new {@code MultiSelectComboBoxElement}.
+	 *
+	 * @param locator
+	 *          the locator for the {@code <vaadin-multi-select-combo-box>} element
+	 */
+	public MultiSelectComboBoxElement(Locator locator) {
+		super(locator);
+	}
 
-    @Override
-    public Locator getFocusLocator() {
-        return getInputLocator();
-    }
+	@Override
+	public Locator getFocusLocator() {
+		return getInputLocator();
+	}
 
-    @Override
-    public Locator getAriaLabelLocator() {
-        return getInputLocator();
-    }
+	@Override
+	public Locator getAriaLabelLocator() {
+		return getInputLocator();
+	}
 
-    @Override
-    public Locator getEnabledLocator() {
-        return getInputLocator();
-    }
+	@Override
+	public Locator getEnabledLocator() {
+		return getInputLocator();
+	}
 
-    /**
-     * Get the selected values as a comma-separated string from the
-     * {@code selectedItems} property.
-     *
-     * @return comma-separated selected values, or empty string when nothing is selected
-     */
-    @Override
-    public String getValue() {
-        List<String> items = getSelectedItems();
-        return String.join(", ", items);
-    }
+	/**
+	 * Get the selected values as a comma-separated string from the
+	 * {@code selectedItems} property.
+	 *
+	 * @return comma-separated selected values, or empty string when nothing is selected
+	 */
+	@Override
+	public String getValue() {
+		List<String> items = getSelectedItems();
+		return String.join(", ", items);
+	}
 
-    /**
-     * Assert that the displayed value equals the expected string.
-     *
-     * @param expected expected comma-separated value or empty string for no selection
-     */
-    @Override
-    public void assertValue(String expected) {
-        if (expected == null || expected.isEmpty()) {
-            getLocator().page().waitForCondition(() -> getSelectedItemCount() == 0);
-        } else {
-            getLocator().page().waitForCondition(() -> expected.equals(getValue()));
-        }
-    }
+	/**
+	 * Assert that the displayed value equals the expected string.
+	 *
+	 * @param expected
+	 *          expected comma-separated value or empty string for no selection
+	 */
+	@Override
+	public void assertValue(String expected) {
+		if (expected == null || expected.isEmpty()) {
+			getLocator().page().waitForCondition(() -> getSelectedItemCount() == 0);
+		} else {
+			getLocator().page().waitForCondition(() -> expected.equals(getValue()));
+		}
+	}
 
-    // ── Selection ──────────────────────────────────────────────────────
+	// ── Selection ──────────────────────────────────────────────────────
 
-    /**
-     * Select an item by its visible label.
-     * Opens the overlay, clicks the matching item (toggling its selection).
-     *
-     * @param item label of the item to select
-     */
-    public void selectItem(String item) {
-        open();
-        getOverlayItem(item).click();
-    }
+	/**
+	 * Toggle the selection of an item by its visible label.
+	 * Opens the overlay, clicks the matching item (toggling its selection).
+	 *
+	 * @param item
+	 *          label of the item to toggle
+	 */
+	public void toggleItem(String item) {
+		open();
+//		getOverlayItem(item).click(); not always downloaded
+		filterAndToggleItem(item, item);
+	}
 
-    /**
-     * Deselect an item by its visible label.
-     * Opens the overlay, clicks the matching item (toggling its selection off).
-     *
-     * @param item label of the item to deselect
-     */
-    public void deselectItem(String item) {
-        open();
-        getOverlayItem(item).click();
-    }
+	/**
+	 * Select an item by its visible label, if it is not already selected.
+	 * Opens the overlay, clicks the matching item (toggling its selection).
+	 *
+	 * @param item
+	 *          label of the item to select
+	 */
+	public void selectItem(String item) {
+		if (!isSelected(item)) {
+			toggleItem(item);
+		}
+	}
 
-    /**
-     * Select multiple items in sequence.
-     *
-     * @param items labels of the items to select
-     */
-    public void selectItems(String... items) {
-        open();
-        for (String item : items) {
-            getOverlayItem(item).click();
-        }
-    }
+	/**
+	 * Select only this one item
+	 *
+	 * @param item
+	 *          label of the item to select
+	 */
+	public void selectOnlyItem(String item) {
+		deselectAllItems();
+		toggleItem(item);
+	}
 
-    /**
-     * Deselect multiple items in sequence.
-     *
-     * @param items labels of the items to deselect
-     */
-    public void deselectItems(String... items) {
-        open();
-        for (String item : items) {
-            getOverlayItem(item).click();
-        }
-    }
+	/**
+	 * Deselect an item by its visible label, if it is currently selected.
+	 * Opens the overlay, clicks the matching item (toggling its selection off).
+	 *
+	 * @param item
+	 *          label of the item to deselect
+	 */
+	public void deselectItem(String item) {
+		if (isSelected(item)) {
+			toggleItem(item);
+		}
+	}
 
-    /**
-     * Type filter text into the input, then click the matching item.
-     *
-     * @param filter text to type for filtering
-     * @param item   label of the item to select
-     */
-    public void filterAndSelectItem(String filter, String item) {
-        setFilter(filter);
-        getOverlayItem(item).click();
-    }
+	/**
+	 * Toggle multiple items in sequence.
+	 * Any existing selected items not in the argument list will remain selected.
+	 *
+	 * @param items
+	 *          labels of the items to select
+	 */
+	public void toggleItems(String... items) {
+		open();
+		for (String item : items) {
+			getOverlayItem(item).click();
+		}
+	}
 
-    /**
-     * Type into the input to trigger filtering.
-     * Uses {@code pressSequentially} to fire keyboard events that the
-     * component listens to for filtering.
-     *
-     * @param filter the filter text
-     */
-    public void setFilter(String filter) {
-        open();
-        getInputLocator().pressSequentially(filter);
-    }
+	/**
+	 * Select multiple items in sequence.
+	 * Any existing selected items not in the argument list will remain selected.
+	 *
+	 * @param items
+	 *          labels of the items to select
+	 */
+	public void selectItems(String... items) {
+		open();
+		for (String item : items) {
+			selectItem(item);
+		}
+	}
 
-    /**
-     * Get the current filter value from the DOM property.
-     *
-     * @return the current filter string
-     */
-    public String getFilter() {
-        Object value = getProperty("filter");
-        return value == null ? "" : value.toString();
-    }
+	/**
+	 * Select multiple items in sequence.
+	 * Any existing selected items not in the argument list will become deselected.
+	 *
+	 * @param items
+	 *          labels of the items to select
+	 */
+	public void selectOnlyItems(String... items) {
+		deselectAllItems();
+		selectItems(items);
+		close();
+	}
 
-    // ── Open / Close ───────────────────────────────────────────────────
+	/**
+	 * Deselect multiple items in sequence.
+	 * Any existing selected items not in the argument list will remain selected.
+	 *
+	 * @param items
+	 *          labels of the items to deselect
+	 */
+	public void deselectItems(String... items) {
+		for (String item : items) {
+			deselectItem(item);
+		}
+	}
 
-    /**
-     * Open the combo box overlay.
-     */
-    public void open() {
-        setProperty("opened", true);
-    }
+	/**
+	 * Delect any selected items.
+	 */
+	public void deselectAllItems() {
+		open();
+		for (String selectedItem : getSelectedItems()) {
+			toggleItem(selectedItem);
+		}
+	}
 
-    /**
-     * Close the combo box overlay.
-     */
-    public void close() {
-        setProperty("opened", false);
-    }
+	/**
+	 * Type filter text into the input, then click the matching item.
+	 *
+	 * @param filter
+	 *          text to type for filtering
+	 * @param item
+	 *          label of the item to select
+	 */
+	public void filterAndToggleItem(String filter, String item) {
+		setFilter(filter);
+		getOverlayItem(item).click();
+	}
 
-    /**
-     * Whether the overlay is currently open.
-     *
-     * @return {@code true} when the overlay is open
-     */
-    public boolean isOpened() {
-        return Boolean.TRUE.equals(getProperty("opened"));
-    }
+	/**
+	 * Type into the input to trigger filtering.
+	 * Uses {@code pressSequentially} to fire keyboard events that the
+	 * component listens to for filtering.
+	 *
+	 * @param filter
+	 *          the filter text
+	 */
+	public void setFilter(String filter) {
+		open();
+		getInputLocator().pressSequentially(filter);
+	}
 
-    /**
-     * Assert that the combo box overlay is open.
-     */
-    public void assertOpened() {
-        assertThat(getLocator()).hasAttribute("opened", "");
-    }
+	/**
+	 * Get the current filter value from the DOM property.
+	 *
+	 * @return the current filter string
+	 */
+	public String getFilter() {
+		Object value = getProperty("filter");
+		return value == null ? "" : value.toString();
+	}
 
-    /**
-     * Assert that the combo box overlay is closed.
-     */
-    public void assertClosed() {
-        assertThat(getLocator()).not().hasAttribute("opened", "");
-    }
+	// ── Open / Close ───────────────────────────────────────────────────
 
-    // ── Read-only ──────────────────────────────────────────────────────
+	/**
+	 * Open the combo box overlay.
+	 */
+	public void open() {
+		setProperty("opened", true);
+	}
 
-    /**
-     * Whether the combo box is read-only.
-     *
-     * @return {@code true} when read-only
-     */
-    public boolean isReadOnly() {
-        return getLocator().getAttribute("readonly") != null;
-    }
+	/**
+	 * Close the combo box overlay.
+	 */
+	public void close() {
+		setProperty("opened", false);
+	}
 
-    /**
-     * Assert that the combo box is read-only.
-     */
-    public void assertReadOnly() {
-        assertThat(getLocator()).hasAttribute("readonly", "");
-    }
+	/**
+	 * Close the combo box overlay if not already closed.
+	 */
+	public void ensureClose() {
+		if (!isOpened()) return;
+		setProperty("opened", true);
+	}
 
-    /**
-     * Assert that the combo box is not read-only.
-     */
-    public void assertNotReadOnly() {
-        assertThat(getLocator()).not().hasAttribute("readonly", "");
-    }
+	/**
+	 * Whether the overlay is currently open.
+	 *
+	 * @return {@code true} when the overlay is open
+	 */
+	public boolean isOpened() {
+		return Boolean.TRUE.equals(getProperty("opened"));
+	}
 
-    // ── Toggle button ──────────────────────────────────────────────────
+	/**
+	 * Assert that the combo box overlay is open.
+	 */
+	public void assertOpened() {
+		assertThat(getLocator()).hasAttribute("opened", "");
+	}
 
-    /**
-     * Locator for the toggle button part.
-     *
-     * @return locator for the toggle button
-     */
-    public Locator getToggleButtonLocator() {
-        return getLocator().locator("[part~=\"toggle-button\"]");
-    }
+	/**
+	 * Assert that the combo box overlay is closed.
+	 */
+	public void assertClosed() {
+		assertThat(getLocator()).not().hasAttribute("opened", "");
+	}
 
-    /**
-     * Click the dropdown toggle button.
-     */
-    public void clickToggleButton() {
-        getToggleButtonLocator().click();
-    }
+	// ── Read-only ──────────────────────────────────────────────────────
 
-    // ── Overlay items ──────────────────────────────────────────────────
+	/**
+	 * Whether the combo box is read-only.
+	 *
+	 * @return {@code true} when read-only
+	 */
+	public boolean isReadOnly() {
+		return getLocator().getAttribute("readonly") != null;
+	}
 
-    /**
-     * Count visible overlay items.
-     *
-     * @return the number of visible items
-     */
-    public int getOverlayItemCount() {
-        return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").count();
-    }
+	/**
+	 * Assert that the combo box is read-only.
+	 */
+	public void assertReadOnly() {
+		assertThat(getLocator()).hasAttribute("readonly", "");
+	}
 
-    /**
-     * Assert that the overlay contains exactly the expected number of items.
-     *
-     * @param expected expected item count
-     */
-    public void assertItemCount(int expected) {
-        assertThat(getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")).hasCount(expected);
-    }
+	/**
+	 * Assert that the combo box is not read-only.
+	 */
+	public void assertNotReadOnly() {
+		assertThat(getLocator()).not().hasAttribute("readonly", "");
+	}
 
-    // ── Chips ──────────────────────────────────────────────────────────
+	// ── Toggle button ──────────────────────────────────────────────────
 
-    /**
-     * Get the locator for all non-overflow chips.
-     *
-     * @return locator for selected-value chips
-     */
-    public Locator getChipLocators() {
-        return getLocator().locator(FIELD_CHIP_TAG_NAME + ":not([slot=\"overflow\"])");
-    }
+	/**
+	 * Locator for the toggle button part.
+	 *
+	 * @return locator for the toggle button
+	 */
+	public Locator getToggleButtonLocator() {
+		return getLocator().locator("[part~=\"toggle-button\"]");
+	}
 
-    /**
-     * Get the locator for the overflow chip.
-     *
-     * @return locator for the overflow chip
-     */
-    public Locator getOverflowChipLocator() {
-        return getLocator().locator(FIELD_CHIP_TAG_NAME + "[slot=\"overflow\"]");
-    }
+	/**
+	 * Click the dropdown toggle button.
+	 */
+	public void clickToggleButton() {
+		getToggleButtonLocator().click();
+	}
 
-    /**
-     * Get the labels of all currently selected items by reading the
-     * {@code selectedItems} property from the web component.
-     *
-     * @return list of selected item labels
-     */
-    @SuppressWarnings("unchecked")
-    public List<String> getSelectedItems() {
-        Object result = getLocator().evaluate(
-                "el => (el.selectedItems || []).map(i => typeof i === 'string' ? i : i[el.itemLabelPath || 'label'] || String(i))");
-        if (result instanceof List<?> list) {
-            List<String> items = new ArrayList<>();
-            for (Object item : list) {
-                items.add(String.valueOf(item));
-            }
-            return items;
-        }
-        return Collections.emptyList();
-    }
+	// ── Overlay items ──────────────────────────────────────────────────
 
-    /**
-     * Get the count of currently selected items from the
-     * {@code selectedItems} property.
-     *
-     * @return number of selected items
-     */
-    public int getSelectedItemCount() {
-        return ((Number) getLocator().evaluate(
-                "el => (el.selectedItems || []).length")).intValue();
-    }
+	/**
+	 * Count visible overlay items.
+	 *
+	 * @return the number of visible items
+	 */
+	public int getOverlayItemCount() {
+		return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").count();
+	}
 
-    /**
-     * Assert that the selected item labels match the expected values.
-     *
-     * @param expected expected item labels
-     */
-    public void assertSelectedItems(String... expected) {
-        getLocator().page().waitForCondition(() -> getSelectedItemCount() == expected.length);
-        List<String> actual = getSelectedItems();
-        for (String exp : expected) {
-            assert actual.contains(exp)
-                    : "Expected item '" + exp + "' in " + actual;
-        }
-    }
+	/**
+	 * Assert that the overlay contains exactly the expected number of items.
+	 *
+	 * @param expected
+	 *          expected item count
+	 */
+	public void assertItemCount(int expected) {
+		assertThat(getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")).hasCount(expected);
+	}
 
-    /**
-     * Assert that the number of selected items matches.
-     *
-     * @param expected expected number of selected items
-     */
-    public void assertSelectedCount(int expected) {
-        getLocator().page().waitForCondition(() -> getSelectedItemCount() == expected);
-    }
+	// ── Chips ──────────────────────────────────────────────────────────
 
-    // ── Overlay item component queries ─────────────────────────────────
+	/**
+	 * Get the locator for all non-overflow chips.
+	 *
+	 * @return locator for selected-value chips
+	 */
+	public Locator getChipLocators() {
+		return getLocator().locator(FIELD_CHIP_TAG_NAME + ":not([slot=\"overflow\"])");
+	}
 
-    /**
-     * Get a typed component element from an overlay item matching the given
-     * text. The component class must be annotated with
-     * {@link PlaywrightElement} and have a public constructor accepting a
-     * single {@link Locator} parameter.
-     *
-     * @param itemText text of the overlay item to search in
-     * @param type     the element class (e.g. {@code ButtonElement.class})
-     * @param <T>      the element type
-     * @return the first matching component inside the item
-     */
-    public <T extends VaadinElement> T getOverlayItemComponent(String itemText, Class<T> type) {
-        return createComponent(getOverlayItem(itemText), type);
-    }
+	/**
+	 * Get the locator for the overflow chip.
+	 *
+	 * @return locator for the overflow chip
+	 */
+	public Locator getOverflowChipLocator() {
+		return getLocator().locator(FIELD_CHIP_TAG_NAME + "[slot=\"overflow\"]");
+	}
 
-    /**
-     * Get a typed component element from an overlay item at the given
-     * visible index. The component class must be annotated with
-     * {@link PlaywrightElement} and have a public constructor accepting a
-     * single {@link Locator} parameter.
-     *
-     * @param index 0-based visible item index
-     * @param type  the element class (e.g. {@code ButtonElement.class})
-     * @param <T>   the element type
-     * @return the first matching component inside the item
-     */
-    public <T extends VaadinElement> T getOverlayItemComponent(int index, Class<T> type) {
-        Locator item = getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").nth(index);
-        return createComponent(item, type);
-    }
+	/**
+	 * Get the labels of all currently selected items by reading the
+	 * {@code selectedItems} property from the web component.
+	 *
+	 * @return list of selected item labels
+	 */
+	@SuppressWarnings("unchecked")
+	public List<String> getSelectedItems() {
+		Object result = evaluateSelectedItems();
+		if (result instanceof List<?> list) {
+			List<String> items = new ArrayList<>();
+			for (Object item : list) {
+				items.add(String.valueOf(item));
+			}
+			return items;
+		}
+		return Collections.emptyList();
+	}
 
-    // ── Static factories ───────────────────────────────────────────────
+	private Object evaluateSelectedItems() {
+		return getLocator().evaluate(
+		    "el => (el.selectedItems || []).map(i => typeof i === 'string' ? i : i[el.itemLabelPath || 'label'] || String(i))");
+	}
 
-    /**
-     * Get the {@code MultiSelectComboBoxElement} by its label.
-     *
-     * @param page  the Playwright page
-     * @param label the accessible label of the field
-     * @return the matching {@code MultiSelectComboBoxElement}
-     */
-    public static MultiSelectComboBoxElement getByLabel(Page page, String label) {
-        return new MultiSelectComboBoxElement(
-                page.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions()
-                                .setHas(page.getByRole(AriaRole.COMBOBOX,
-                                        new Page.GetByRoleOptions().setName(label)))
-                        ).first());
-    }
+	/**
+	 * Answer true if the given item is selected.
+	 *
+	 * @return whether or not the given item is selected
+	 */
+	public boolean isSelected(String value) {
+		Object result = evaluateSelectedItems();
+		if (result instanceof List<?> list) {
+			for (Object item : list) {
+				if (String.valueOf(item).equals(value)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 
-    /**
-     * Get the {@code MultiSelectComboBoxElement} by its label within a given scope.
-     *
-     * @param locator the locator to search within
-     * @param label   the accessible label of the field
-     * @return the matching {@code MultiSelectComboBoxElement}
-     */
-    public static MultiSelectComboBoxElement getByLabel(Locator locator, String label) {
-        return new MultiSelectComboBoxElement(
-                locator.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions().setHas(locator.getByLabel(label)))
-                        .first());
-    }
+	/**
+	 * Get the count of currently selected items from the
+	 * {@code selectedItems} property.
+	 *
+	 * @return number of selected items
+	 */
+	public int getSelectedItemCount() {
+		return ((Number) getLocator().evaluate(
+		    "el => (el.selectedItems || []).length")).intValue();
+	}
 
-    // ── Internal ───────────────────────────────────────────────────────
+	/**
+	 * Assert that the selected item labels match the expected values.
+	 *
+	 * @param expected
+	 *          expected item labels
+	 */
+	public void assertSelectedItems(String... expected) {
+		getLocator().page().waitForCondition(() -> getSelectedItemCount() == expected.length);
+		List<String> actual = getSelectedItems();
+		for (String exp : expected) {
+			assert actual.contains(exp) : "Expected item '" + exp + "' in " + actual;
+		}
+	}
 
-    private Locator getOverlayItem(String label) {
-        return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-                .filter(new Locator.FilterOptions()
-                        .setHasText(label)).first();
-    }
+	/**
+	 * Assert that the number of selected items matches.
+	 *
+	 * @param expected
+	 *          expected number of selected items
+	 */
+	public void assertSelectedCount(int expected) {
+		getLocator().page().waitForCondition(() -> getSelectedItemCount() == expected);
+	}
 
-    private <T extends VaadinElement> T createComponent(Locator parent, Class<T> type) {
-        PlaywrightElement annotation = type.getAnnotation(PlaywrightElement.class);
-        if (annotation == null) {
-            throw new IllegalArgumentException(
-                    type.getSimpleName() + " is not annotated with @PlaywrightElement");
-        }
-        Locator componentLocator = parent.locator(annotation.value()).first();
-        try {
-            return type.getConstructor(Locator.class).newInstance(componentLocator);
-        } catch (InvocationTargetException e) {
-            throw new IllegalArgumentException(
-                    "Cannot instantiate " + type.getSimpleName(), e.getCause());
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalArgumentException(
-                    "Cannot instantiate " + type.getSimpleName(), e);
-        }
-    }
+	// ── Overlay item component queries ─────────────────────────────────
+
+	/**
+	 * Get a typed component element from an overlay item matching the given
+	 * text. The component class must be annotated with
+	 * {@link PlaywrightElement} and have a public constructor accepting a
+	 * single {@link Locator} parameter.
+	 *
+	 * @param itemText
+	 *          text of the overlay item to search in
+	 * @param type
+	 *          the element class (e.g. {@code ButtonElement.class})
+	 * @param <T>
+	 *          the element type
+	 * @return the first matching component inside the item
+	 */
+	public <T extends VaadinElement> T getOverlayItemComponent(String itemText, Class<T> type) {
+		return createComponent(getOverlayItem(itemText), type);
+	}
+
+	/**
+	 * Get a typed component element from an overlay item at the given
+	 * visible index. The component class must be annotated with
+	 * {@link PlaywrightElement} and have a public constructor accepting a
+	 * single {@link Locator} parameter.
+	 *
+	 * @param index
+	 *          0-based visible item index
+	 * @param type
+	 *          the element class (e.g. {@code ButtonElement.class})
+	 * @param <T>
+	 *          the element type
+	 * @return the first matching component inside the item
+	 */
+	public <T extends VaadinElement> T getOverlayItemComponent(int index, Class<T> type) {
+		Locator item = getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").nth(index);
+		return createComponent(item, type);
+	}
+
+	// ── Static factories ───────────────────────────────────────────────
+
+	/**
+	 * Get the {@code MultiSelectComboBoxElement} by its label.
+	 *
+	 * @param page
+	 *          the Playwright page
+	 * @param label
+	 *          the accessible label of the field
+	 * @return the matching {@code MultiSelectComboBoxElement}
+	 */
+	public static MultiSelectComboBoxElement getByLabel(Page page, String label) {
+		return new MultiSelectComboBoxElement(
+		    page.locator(FIELD_TAG_NAME)
+		        .filter(new Locator.FilterOptions()
+		            .setHas(page.getByRole(AriaRole.COMBOBOX,
+		                new Page.GetByRoleOptions().setName(label))))
+		        .first());
+	}
+
+	/**
+	 * Get the {@code MultiSelectComboBoxElement} by its label within a given scope.
+	 *
+	 * @param locator
+	 *          the locator to search within
+	 * @param label
+	 *          the accessible label of the field
+	 * @return the matching {@code MultiSelectComboBoxElement}
+	 */
+	public static MultiSelectComboBoxElement getByLabel(Locator locator, String label) {
+		return new MultiSelectComboBoxElement(
+		    locator.locator(FIELD_TAG_NAME)
+		        .filter(new Locator.FilterOptions().setHas(locator.getByLabel(label)))
+		        .first());
+	}
+
+	// ── Internal ───────────────────────────────────────────────────────
+
+	private Locator getOverlayItem(String label) {
+		return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+		    .filter(new Locator.FilterOptions()
+		        .setHasText(label))
+		    .first();
+	}
+
+	private <T extends VaadinElement> T createComponent(Locator parent, Class<T> type) {
+		PlaywrightElement annotation = type.getAnnotation(PlaywrightElement.class);
+		if (annotation == null) {
+			throw new IllegalArgumentException(
+			    type.getSimpleName() + " is not annotated with @PlaywrightElement");
+		}
+		Locator componentLocator = parent.locator(annotation.value()).first();
+		try {
+			return type.getConstructor(Locator.class).newInstance(componentLocator);
+		} catch (InvocationTargetException e) {
+			throw new IllegalArgumentException(
+			    "Cannot instantiate " + type.getSimpleName(), e.getCause());
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalArgumentException(
+			    "Cannot instantiate " + type.getSimpleName(), e);
+		}
+	}
 }

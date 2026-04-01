@@ -24,6 +24,15 @@ public interface HasEnabledElement extends HasLocatorElement {
         assertThat(getEnabledLocator()).isEnabled();
     }
 
+    /** Assert that the component is enabled, as an argument. */
+    default void assertEnabled(boolean isEnabled) {
+    		if (isEnabled) {
+    			assertThat(getEnabledLocator()).isEnabled();
+    		} else {
+          assertThat(getEnabledLocator()).isDisabled();
+    		}
+    }
+
     /** Assert that the component is disabled. */
     default void assertDisabled() {
         assertThat(getEnabledLocator()).isDisabled();
