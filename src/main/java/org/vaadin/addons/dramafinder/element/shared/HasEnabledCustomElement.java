@@ -13,7 +13,9 @@ import com.microsoft.playwright.assertions.LocatorAssertions;
 
 public interface HasEnabledCustomElement  extends HasLocatorElement {
 
-  /** Locator used to check enablement. Defaults to root. */
+  public static final String ARIA_DISABLED = "aria-disabled";
+
+	/** Locator used to check enablement. Defaults to root. */
   default Locator getEnabledLocator() {
       return getLocator();
   }
@@ -29,7 +31,7 @@ public interface HasEnabledCustomElement  extends HasLocatorElement {
   }
 
   default boolean isEnabled(boolean isEnabled) {
-		String attrValue = getEnabledLocator().getAttribute("aria-disabled");
+		String attrValue = getEnabledLocator().getAttribute(ARIA_DISABLED);
 		if (isEnabled) {
 			return attrValue == null || "false".equals(attrValue);
 		} else {
@@ -44,11 +46,11 @@ public interface HasEnabledCustomElement  extends HasLocatorElement {
 //		String attrValue = getEnabledLocator().getAttribute("aria-disabled");
 		if (isEnabled) {
 			//aria-disabled can either be null or it can be false. The LocatorAssertions does not support an OR operation.
-			assertedLocation.not().hasAttribute("aria-disabled", "false");
+			assertedLocation.not().hasAttribute(ARIA_DISABLED, "false");
 //			assertThat(attrValue == null || attrValue.equals("false")).as("enabled").isTrue();
 		} else {
 			assertedLocation.isDisabled();
-			assertedLocation.hasAttribute("aria-disabled", "true");
+			assertedLocation.hasAttribute(ARIA_DISABLED, "true");
 //			assertThat(attrValue).as("null aria-disabled").isNotNull();
 //			assertThat(attrValue).as("disabled").isEqualTo("true");
 		}

@@ -3,6 +3,7 @@ package org.vaadin.addons.dramafinder.element;
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAllowedCharPatternElement;
@@ -17,6 +18,8 @@ import org.vaadin.addons.dramafinder.element.shared.HasTooltipElement;
 import org.vaadin.addons.dramafinder.element.shared.HasValidationPropertiesElement;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.assertions.LocatorAssertions;
+import com.microsoft.playwright.assertions.LocatorAssertions.HasCountOptions;
 import com.microsoft.playwright.options.AriaRole;
 
 /**
@@ -116,7 +119,10 @@ public class ComboBoxElement extends VaadinElement
      */
     public void filterAndSelectExactItem(String filter, String item) {
         setFilter(filter);
-        getOverlayItemExact(item).click();
+        //start and end matches the entire string. Escape the string in case it contains regex characters
+        String escapedRegex = Pattern.quote(item);
+  				Pattern exactMatch = Pattern.compile("^\\s*" + escapedRegex + "\\s*$");
+  				getOverlayItemPainful(filter, exactMatch).click();
         close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
     }
 
@@ -236,7 +242,7 @@ public class ComboBoxElement extends VaadinElement
      */
     public int getAllOverlayItemCount() {
     			ensureOpenedOnce();
-        return getLocator().locator(FIELD_ITEM_TAG_NAME).count(); //Use the Locator, not the page, otherwise you get all the other ComboBox values as well
+        return getLocator().locator(FIELD_ITEM_TAG_NAME).count(); //Use the Locator, not the page, otherwise you get all the other ComboBox values on the Page.
     }
 
     /**
@@ -285,12 +291,60 @@ public class ComboBoxElement extends VaadinElement
                         .setHasText(label)).first();
     }
 
-    //Force an exact match
-    private Locator getOverlayItemExact(String label) {
-    	Pattern exactMatch = Pattern.compile("^" + label + "$");
-        return getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-            .filter(new Locator.FilterOptions()
-                    .setHasText(exactMatch)).first();
+    //Force an exact match. Wait in case it requires a lazy evaluation
+    private Locator getOverlayItemExactWait(Pattern exactMatch) {
+      Locator loc = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+          .filter(new Locator.FilterOptions()
+                  .setHasText(exactMatch));
+      assertThat(loc).hasCount(1, new HasCountOptions().setTimeout(5000)); //waits for lazy download to settle. doesn't work. stays at count=0
+      return loc.first();
+  }
+
+    //because you can't just expect it to be easy and for the regex to work
+    //Note that the all() method does not wait, so you must have filtered before getting here.
+    //I think the regex is fine, but you have to check in a loop until the lazy eval is completed.
+    //The assert-locator-hasCount does not work and I don't know why. You can inspect the DOM and see that it should work, but it returns zero.
+    private Locator getOverlayItemPainful(String label, Pattern exactMatch) {
+
+      //getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+      //    .filter(new Locator.FilterOptions()
+      //            .setHasText(exactMatch)).count();
+
+       Locator locAll = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+                .filter(new Locator.FilterOptions()
+                        .setHasText(label));
+
+       //junk loop
+       int iter = 0;
+        while (iter++ < 100) {
+        	int count = locAll.count();
+        	if (count == 1) {
+
+        	  //debug check. this fails. Either a bug with my regex or a bug in PW. And the regex is correct both in java and elsewhere
+        		//Example: Searching for the text "foo". The regex is ^\s*\Qfoo\E\s*$
+        		//getOverlayItemExactWait(exactMatch);
+
+        		return locAll.first();
+
+        	} else if (count == 0) {
+        		try {
+        			Thread.sleep(100);
+        		} catch (InterruptedException e) {
+        			e.printStackTrace();
+        		}
+
+        	} else {
+        		Predicate<String> pred = exactMatch.asMatchPredicate();
+        		for (Locator loc : locAll.all()) {
+        			if (pred.test(loc.textContent())) {
+//            		getOverlayItemExactWait(exactMatch); //fails here as well
+        				return loc;
+        			}
+        		}
+        		assert(false);
+        	}
+        	}
+        return null;
     }
 
     //The widget may only download a subset of values. If this needs to be tested, setPageSize(veryLarge)

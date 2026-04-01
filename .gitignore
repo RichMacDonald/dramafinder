@@ -42,6 +42,8 @@ package.json
 
 .vscode/.copilot-plugin
 .vscode/launch.json
+
+# Eclipse IDE
 /bin/
 /.classpath
 /.settings
