@@ -88,6 +88,10 @@ public class DatePickerElement extends VaadinElement implements HasInputFieldEle
     @Override
     public void setValue(String value) {
         HasInputFieldElement.super.setValue(value);
+        //not good enough. Needs to close the popup. Typing "Enter" closes the popup, but does not validate
+        getInputLocator().press("Enter");
+//        getLocator().page().locator("css=body").click(); //validates (see it selecting another element as well; not good)
+        getInputLocator().press("Tab"); //selects something else, but the body click is not working
     }
 
 

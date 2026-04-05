@@ -61,6 +61,15 @@ public class CheckboxElement extends VaadinElement
     }
 
     /**
+     * Whether the checkbox is currently checked, with an argument.
+     *
+     * @return {@code true} if checked matches the argument
+     */
+    public boolean isChecked(boolean checked) {
+        return checked == isChecked();
+    }
+
+    /**
      * Assert that the checkbox is checked.
      */
     public void assertChecked() {
@@ -86,6 +95,18 @@ public class CheckboxElement extends VaadinElement
      */
     public void uncheck() {
         getInputLocator().uncheck();
+    }
+
+    /**
+     * Check/Uncheck the checkbox as an argument.
+     */
+    public void check(boolean check) {
+    		Locator inputLocator = getInputLocator();
+    		if (check) {
+    			inputLocator.check();
+    		} else {
+    			inputLocator.uncheck();
+    		}
     }
 
     /**

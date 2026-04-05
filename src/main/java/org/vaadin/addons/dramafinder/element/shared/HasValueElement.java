@@ -29,6 +29,10 @@ public interface HasValueElement extends HasLocatorElement {
         //Even triggering this even does not guarantee the backend will be informed, allowing it to validate
         //Only reliable method I have found to guarantee a backend validation (calling this onValueChange listener) is to click the body element (needs the Page)
         getLocator().dispatchEvent("change");
+
+        //cannot always be found
+        //pw:api <html lang="en" theme="light">…</html> intercepts pointer events
+        //getLocator().page().locator("css=body").click();
     }
 
     /** Clear the input value. */

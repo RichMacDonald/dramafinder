@@ -1,8 +1,8 @@
 package org.vaadin.addons.dramafinder.element.shared;
 
-import com.microsoft.playwright.Locator;
-
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import org.jspecify.annotations.Nullable;
+import com.microsoft.playwright.Locator;
 
 /**
  * Mixin for components exposing validation state and error messages.
@@ -28,4 +28,16 @@ public interface HasValidationPropertiesElement extends HasLocatorElement {
     default void assertErrorMessage(String errorMessage) {
         assertThat(getErrorMessageLocator()).hasText(errorMessage);
     }
+
+    /** Is an error message showing? */
+    default boolean hasErrorMessage() {
+    		return getErrorMessageLocator().isVisible();
+    }
+
+    /** Get the error message that is showing. */
+    default @Nullable String getErrorMessage() {
+    		return hasErrorMessage() ? getErrorMessageLocator().textContent() : null;
+    }
+
+    // Clients could also use isValid() and isValue(boolean value)
 }
