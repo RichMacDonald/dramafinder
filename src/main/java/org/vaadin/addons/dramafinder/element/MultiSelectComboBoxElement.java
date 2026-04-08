@@ -4,9 +4,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.assertions.LocatorAssertions.HasCountOptions;
 import com.microsoft.playwright.options.AriaRole;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAllowedCharPatternElement;
@@ -95,15 +97,16 @@ public class MultiSelectComboBoxElement extends VaadinElement
 
 	/**
 	 * Toggle the selection of an item by its visible label.
-	 * Opens the overlay, clicks the matching item (toggling its selection).
+	 * Opens the overlay, clicks the matching item.
 	 *
 	 * @param item
 	 *          label of the item to toggle
 	 */
-	public void toggleItem(String item) {
+	private void _selectItem(String item) {
 		open();
 //		getOverlayItem(item).click(); not always downloaded
 		filterAndToggleItem(item, item);
+    close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
 	}
 
 	/**
@@ -115,7 +118,7 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 */
 	public void selectItem(String item) {
 		if (!isSelected(item)) {
-			toggleItem(item);
+			_selectItem(item);
 		}
 	}
 
@@ -127,20 +130,26 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 */
 	public void selectOnlyItem(String item) {
 		deselectAllItems();
-		toggleItem(item);
+		_selectItem(item);
 	}
 
 	/**
 	 * Deselect an item by its visible label, if it is currently selected.
-	 * Opens the overlay, clicks the matching item (toggling its selection off).
+	 * Opens the overlay, clicks the matching item (toggling its selection off). (No more)
+	 * RJM: This was messy because need to use setFilter first and that means typing the value
+	 * into the filter field, which causes it to remain selected when you click toggle.
+	 * Better to find the slot and click it
 	 *
 	 * @param item
 	 *          label of the item to deselect
 	 */
 	public void deselectItem(String item) {
-		if (isSelected(item)) {
-			toggleItem(item);
-		}
+		getChipLocators().all().forEach(chipLocator ->{
+			if (chipLocator.textContent().equals(item)) { //note: Exact match
+				chipLocator.click();
+				return;
+			}
+		});
 	}
 
 	/**
@@ -174,13 +183,16 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	/**
 	 * Select multiple items in sequence.
 	 * Any existing selected items not in the argument list will become deselected.
+	 * Using exact match, rather than first match
 	 *
 	 * @param items
 	 *          labels of the items to select
 	 */
 	public void selectOnlyItems(String... items) {
 		deselectAllItems();
-		selectItems(items);
+		for (String item : items) {
+			filterAndSelectExactItem(item, item);
+		}
 		close();
 	}
 
@@ -201,24 +213,55 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 * Delect any selected items.
 	 */
 	public void deselectAllItems() {
-		open();
-		for (String selectedItem : getSelectedItems()) {
-			toggleItem(selectedItem);
+		 //Do it differently than toggle, because we need an exact match and that needs
+	   //the filter and that needs us to type the text, and when we click the overlay,
+		 //it will just select it again (remains selected). Instead, find the "chip"
+		//and click its remove button.
+		//Also have to deal with possible overflow. Handle that by looping until no more matches
+		boolean matched = true;
+		while (matched) {
+				matched = false;
+				for (Locator chipLocator : getChipLocators().all()) {
+					//clicking does nothing. Have to click the remove-button
+					chipLocator.locator("css=div[part=\"remove-button\"]").click();
+					matched = true;
+				}
 		}
 	}
 
 	/**
 	 * Type filter text into the input, then click the matching item.
+	 * Precondition that it is not already selected
 	 *
 	 * @param filter
 	 *          text to type for filtering
 	 * @param item
 	 *          label of the item to select
 	 */
-	public void filterAndToggleItem(String filter, String item) {
+	@Deprecated //the match does not work
+	private void filterAndToggleItem(String filter, String item) {
 		setFilter(filter);
-		getOverlayItem(item).click();
+    //start and end matches the entire string. Escape the string in case it contains regex characters
+    String escapedRegex = Pattern.quote(item);
+		Pattern exactMatch = Pattern.compile("^\\s*" + escapedRegex + "\\s*$");
+		getOverlayItemExactWait(exactMatch).click();
 	}
+
+  /**
+   * Type filter text into the input, then click the matching item.
+	 * Precondition that it is not already selected
+   *
+   * @param filter text to type for filtering
+   * @param item   label of the item to select
+   */
+	private void filterAndSelectExactItem(String filter, String item) {
+      setFilter(filter);
+      //start and end matches the entire string. Escape the string in case it contains regex characters
+      String escapedRegex = Pattern.quote(item);
+			Pattern exactMatch = Pattern.compile("^\\s*" + escapedRegex + "\\s*$");
+			getOverlayItemPainful(filter, exactMatch).click(); //have this this return null and fail, so need to add null pointer handling
+      close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
+  }
 
 	/**
 	 * Type into the input to trigger filtering.
@@ -533,6 +576,63 @@ public class MultiSelectComboBoxElement extends VaadinElement
 		        .setHasText(label))
 		    .first();
 	}
+
+  //Force an exact match. Wait in case it requires a lazy evaluation
+	@Deprecated //not working
+  private Locator getOverlayItemExactWait(Pattern exactMatch) {
+    Locator loc = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+        .filter(new Locator.FilterOptions()
+                .setHasText(exactMatch));
+    assertThat(loc).hasCount(1); //waits for lazy download to settle. doesn't work. stays at count=0
+    return loc.first();
+}
+
+  //because you can't just expect it to be easy and for the regex to work
+  //Note that the all() method does not wait, so you must have filtered before getting here.
+  //I think the regex is fine, but you have to check in a loop until the lazy eval is completed.
+  //The assert-locator-hasCount does not work and I don't know why. You can inspect the DOM and see that it should work, but it returns zero.
+  private Locator getOverlayItemPainful(String label, Pattern exactMatch) {
+
+    //getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+    //    .filter(new Locator.FilterOptions()
+    //            .setHasText(exactMatch)).count();
+
+     Locator locAll = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
+              .filter(new Locator.FilterOptions()
+                      .setHasText(label));
+
+     //junk loop
+     int iter = 0;
+      while (iter++ < 100) {
+      	int count = locAll.count();
+      	if (count == 1) {
+
+      	  //debug check. this fails. Either a bug with my regex or a bug in PW. And the regex is correct both in java and elsewhere
+      		//Example: Searching for the text "foo". The regex is ^\s*\Qfoo\E\s*$
+      		//getOverlayItemExactWait(exactMatch);
+
+      		return locAll.first();
+
+      	} else if (count == 0) {
+      		try {
+      			Thread.sleep(100);
+      		} catch (InterruptedException e) {
+      			e.printStackTrace();
+      		}
+
+      	} else {
+      		Predicate<String> pred = exactMatch.asMatchPredicate();
+      		for (Locator loc : locAll.all()) {
+      			if (pred.test(loc.textContent())) {
+//          		getOverlayItemExactWait(exactMatch); //fails here as well
+      				return loc;
+      			}
+      		}
+      		assert(false);
+      	}
+      	}
+      return null;
+  }
 
 	private <T extends VaadinElement> T createComponent(Locator parent, Class<T> type) {
 		PlaywrightElement annotation = type.getAnnotation(PlaywrightElement.class);

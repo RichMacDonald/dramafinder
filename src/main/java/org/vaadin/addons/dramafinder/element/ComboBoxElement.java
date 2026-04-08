@@ -89,6 +89,7 @@ public class ComboBoxElement extends VaadinElement
      * Select an item by its visible label.
      * Opens the overlay, clicks the matching item.
      * RJM: Ought to be named toggleItem()
+     * Caution that this selects the FIRST matching item
      *
      * @param item label of the item to select
      */
@@ -294,6 +295,7 @@ public class ComboBoxElement extends VaadinElement
     }
 
     //Force an exact match. Wait in case it requires a lazy evaluation
+  	@Deprecated //not working
     private Locator getOverlayItemExactWait(Pattern exactMatch) {
       Locator loc = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
           .filter(new Locator.FilterOptions()
