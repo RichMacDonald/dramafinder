@@ -24,6 +24,15 @@ public interface HasValidationPropertiesElement extends HasLocatorElement {
         assertThat(getLocator()).hasAttribute("invalid", "");
     }
 
+    /** Assert that the component is valid/invalid via a parameter. */
+    default void assertValid(boolean valid) {
+	    	if (valid) {
+	    		assertValid();
+	    	} else {
+	    		assertInvalid();
+	    	}
+    }
+
     /** Assert that the error message equals the expected text. */
     default void assertErrorMessage(String errorMessage) {
         assertThat(getErrorMessageLocator()).hasText(errorMessage);
@@ -39,5 +48,13 @@ public interface HasValidationPropertiesElement extends HasLocatorElement {
     		return hasErrorMessage() ? getErrorMessageLocator().textContent() : null;
     }
 
-    // Clients could also use isValid() and isValue(boolean value)
+    /** Is the component valid (No error message showing)? */
+	  	default boolean isValid() {
+	  		return isValid(true);
+	  	}
+
+	    /** Is the component valid (as a parameter)? */
+	  	default boolean isValid(boolean valid) {
+	  		return valid != hasErrorMessage();
+	  	}
 }

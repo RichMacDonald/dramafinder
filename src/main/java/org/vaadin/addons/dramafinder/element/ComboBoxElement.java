@@ -122,7 +122,7 @@ public class ComboBoxElement extends VaadinElement
         //start and end matches the entire string. Escape the string in case it contains regex characters
         String escapedRegex = Pattern.quote(item);
   				Pattern exactMatch = Pattern.compile("^\\s*" + escapedRegex + "\\s*$");
-  				getOverlayItemPainful(filter, exactMatch).click();
+  				getOverlayItemPainful(filter, exactMatch).click(); //have this this return null and fail, so need to add null pointer handling
         close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
     }
 
@@ -134,7 +134,9 @@ public class ComboBoxElement extends VaadinElement
      * @param filter the filter text
      */
     public void setFilter(String filter) {
-    			clear(); //RJM: Otherwise, this just appends to whatever is already selected
+    			// Need to clear the input field, otherwise it will append to whatever is already selected.
+    			// Do not call clear() because that is a server roundtrip and could respond with a non-empty default value. So clear the field directly, whithout an event
+    			getInputLocator().clear();
         open();
         getInputLocator().pressSequentially(filter);
     }

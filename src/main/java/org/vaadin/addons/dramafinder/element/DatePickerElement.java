@@ -91,7 +91,9 @@ public class DatePickerElement extends VaadinElement implements HasInputFieldEle
         //not good enough. Needs to close the popup. Typing "Enter" closes the popup, but does not validate
         getInputLocator().press("Enter");
 //        getLocator().page().locator("css=body").click(); //validates (see it selecting another element as well; not good)
-        getInputLocator().press("Tab"); //selects something else, but the body click is not working
+        
+        //getInputLocator().press("Tab"); //selects something else, but the body click is not working
+        getInputLocator().blur();
     }
 
 
