@@ -239,7 +239,7 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 *          label of the item to select
 	 */
 	@Deprecated //the match does not work
-	private void filterAndToggleItem(String filter, String item) {
+	public void filterAndToggleItem(String filter, String item) {
 		setFilter(filter);
     //start and end matches the entire string. Escape the string in case it contains regex characters
     String escapedRegex = Pattern.quote(item);
