@@ -209,6 +209,15 @@ public class ComboBoxViewIT extends SpringPlaywrightIT {
     }
 
     @Test
+    public void testSetValueWithExistingValue() {
+        ComboBoxElement comboBox = ComboBoxElement.getByLabel(page, "Sort by");
+        comboBox.setValue("Rating: high to low");
+        comboBox.assertValue("Rating: high to low");
+        comboBox.setValue("Rating: low to high");
+        comboBox.assertValue("Rating: low to high");
+    }
+
+    @Test
     public void testValue() {
         ComboBoxElement comboBox = ComboBoxElement.getByLabel(page, "Sort by");
         comboBox.selectItem("Rating: low to high");
@@ -251,10 +260,51 @@ public class ComboBoxViewIT extends SpringPlaywrightIT {
     }
 
     @Test
+    public void testSetFilterReplacesPreviousFilter() {
+        ComboBoxElement comboBox = ComboBoxElement.getByLabel(page, "Filterable ComboBox");
+        comboBox.setFilter("Apr");
+        comboBox.assertItemCount(1); // Apricot
+        comboBox.setFilter("Ch");
+        comboBox.assertItemCount(1); // Cherry (would be 0 if "AprCh" was appended)
+        comboBox.close();
+    }
+
+    @Test
     public void testLazyClearAfterSelection() {
         ComboBoxElement comboBox = ComboBoxElement.getByLabel(page, "Lazy ComboBox");
         comboBox.selectItem("Item 1");
         comboBox.assertValue("Item 1");
+        comboBox.clickClearButton();
+        comboBox.assertValue("");
+    }
+
+    @Test
+    public void testOverlayItemQueriesAreScopedToCombobox() {
+        ComboBoxElement basic = ComboBoxElement.getByLabel(page, "Sort by");
+        ComboBoxElement filterable = ComboBoxElement.getByLabel(page, "Filterable ComboBox");
+
+        basic.open();
+        filterable.open();
+
+        assertEquals(3, basic.getOverlayItemCount());
+        assertEquals(9, filterable.getOverlayItemCount());
+
+        basic.assertItemCount(3);
+        filterable.assertItemCount(9);
+
+        basic.close();
+        filterable.close();
+
+        basic.selectItem("Most recent first");
+        basic.assertValue("Most recent first");
+        filterable.assertValue("");
+    }
+
+    @Test
+    public void testLazyClearAfterValueChange() {
+        ComboBoxElement comboBox = ComboBoxElement.getByLabel(page, "Lazy ComboBox");
+        comboBox.setValue("Item 101");
+        comboBox.assertValue("Item 101");
         comboBox.clickClearButton();
         comboBox.assertValue("");
     }

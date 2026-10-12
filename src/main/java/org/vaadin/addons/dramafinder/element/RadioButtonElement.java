@@ -1,26 +1,26 @@
 package org.vaadin.addons.dramafinder.element;
 
 import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
+import org.vaadin.addons.dramafinder.element.shared.HasCheckedElement;
 import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
 import org.vaadin.addons.dramafinder.element.shared.HasHelperElement;
 import org.vaadin.addons.dramafinder.element.shared.HasLabelElement;
 import org.vaadin.addons.dramafinder.element.shared.HasStyleElement;
 import org.vaadin.addons.dramafinder.element.shared.HasValidationPropertiesElement;
-import org.vaadin.addons.dramafinder.element.shared.HasValueElement;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
 
 /**
  * PlaywrightElement for {@code <vaadin-radio-button>} (package-private).
+ * <p>
+ * The checked-state API comes from {@link HasCheckedElement}.
  */
 @PlaywrightElement(RadioButtonElement.FIELD_TAG_NAME)
 class RadioButtonElement extends VaadinElement
-        implements FocusableElement, HasAriaLabelElement, HasEnabledElement,
-        HasHelperElement, HasValueElement, HasStyleElement, HasLabelElement, HasValidationPropertiesElement {
+        implements FocusableElement, HasAriaLabelElement, HasCheckedElement, HasEnabledElement,
+        HasHelperElement, HasStyleElement, HasLabelElement, HasValidationPropertiesElement {
 
     public static final String FIELD_TAG_NAME = "vaadin-radio-button";
 
@@ -31,47 +31,15 @@ class RadioButtonElement extends VaadinElement
         super(locator);
     }
 
-    @Override
-    public Locator getEnabledLocator() {
-        return getInputLocator();
-    }
-
-    @Override
-    public Locator getAriaLabelLocator() {
-        return getInputLocator();
-    }
-
-    @Override
-    public Locator getFocusLocator() {
-        return getInputLocator();
-    }
-
-    /** Whether the radio is checked. */
-    boolean isChecked() {
-        return getInputLocator().isChecked();
-    }
-
-    /** Assert that the radio is checked. */
-    void assertChecked() {
-        assertThat(getInputLocator()).isChecked();
-    }
-
-    /** Assert that the radio is not checked. */
-    void assertNotChecked() {
-        assertThat(getInputLocator()).not().isChecked();
-    }
-
-    /** Check the radio. */
-    void check() {
-        getInputLocator().check();
-    }
-
-    /** Get a radio by its label within a given scope. */
+    /**
+     * Get a radio by its full label within a given scope.
+     * <p>
+     * The label must match the radio button's whole accessible name, and two
+     * radios sharing it inside the scope fail with a Playwright strict-mode
+     * error rather than resolving to the first one in the DOM.
+     */
     static RadioButtonElement getByLabel(Locator locator, String label) {
         return new RadioButtonElement(
-                locator.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions()
-                                .setHas(locator.page().getByRole(AriaRole.RADIO,
-                                        new Page.GetByRoleOptions().setName(label)))).first());
+                AccessibleNameLocator.findExact(locator, FIELD_TAG_NAME, AriaRole.RADIO, label));
     }
 }

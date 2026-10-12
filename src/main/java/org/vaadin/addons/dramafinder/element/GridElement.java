@@ -12,6 +12,8 @@ import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
 import org.vaadin.addons.dramafinder.element.shared.HasStyleElement;
 import org.vaadin.addons.dramafinder.element.shared.HasThemeElement;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 /**
  * PlaywrightElement for {@code <vaadin-grid>}.
  * <p>
@@ -254,6 +256,125 @@ public class GridElement extends VaadinElement
         return Objects.equals(cell.getCellContentLocator().innerText(), text);
     }
 
+    // ── Footer Access ──────────────────────────────────────────────────
+
+    /**
+     * Get the number of footer rows. Usually 0 (no footer) or 1, but can be more if there are column groups.
+     *
+     * @return footer row count
+     */
+    protected int getFooterRowCount() {
+        return locator.locator("tfoot tr").count();
+    }
+
+    /**
+     * Find a footer cell by column index.
+     * Uses the first footer row.
+     *
+     * @param columnIndex 0-based visible column index
+     * @return optional footer cell element. Empty if no footer cell exists at the given column index.
+     */
+    public Optional<FooterCellElement> findFooterCell(int columnIndex) {
+        return findFooterCell(0, columnIndex);
+    }
+
+    /**
+     * Find a footer cell by footer row index and column index.
+     *
+     * @param footerRowIndex 0-based footer row index. Use 0 for the first footer row, 1 for the second, etc.
+     * @param columnIndex    0-based visible column index.
+     * @return optional footer cell element. Empty if no footer cell exists at the given footer row and column index.
+     */
+    public Optional<FooterCellElement> findFooterCell(int footerRowIndex, int columnIndex) {
+        if (columnIndex < 0) {
+            throw new IllegalArgumentException("Column index must be non-negative");
+        } else if (footerRowIndex < 0) {
+            throw new IllegalArgumentException("Footer row index must be non-negative");
+        }
+
+        var footerRow = locator.locator("tfoot tr").nth(footerRowIndex);
+        if (footerRow.count() == 0) {
+            return Optional.empty();
+        }
+
+        var footerCell = footerRow.locator("td").nth(columnIndex);
+        if (footerCell.count() > 0) {
+            footerCell.scrollIntoViewIfNeeded(); // Scroll into view, to make sure its rendered
+            return Optional.of(new FooterCellElement(footerCell, columnIndex));
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Find a footer cell by its text content.
+     * Uses the first footer row.
+     *
+     * @param text the footer text to find
+     * @return optional footer cell element. Empty if no footer cell with the given text is found.
+     */
+    public Optional<FooterCellElement> findFooterCellByText(String text) {
+        return findFooterCellByText(0, text);
+    }
+
+    /**
+     * Find a footer cell by footer row index and text content.
+     *
+     * @param footerRowIndex 0-based footer row index. Use 0 for the first footer row, 1 for the second, etc.
+     * @param text           the footer text to find
+     * @return optional footer cell element. Empty if no footer cell with the given text is found in the given footer row.
+     */
+    public Optional<FooterCellElement> findFooterCellByText(int footerRowIndex, String text) {
+        if (text == null || text.isEmpty()) {
+            throw new IllegalArgumentException("Text must not be null or empty");
+        }
+        var footerRow = locator.locator("tfoot tr").nth(footerRowIndex);
+        if (footerRow.count() == 0) {
+            return Optional.empty();
+        }
+
+        var allFooterCells = footerRow.locator("td").all();
+        for (int i = 0; i < allFooterCells.size(); i++) {
+            var cell = new FooterCellElement(allFooterCells.get(i), i);
+            cell.getTableCellLocator().scrollIntoViewIfNeeded(); // Scroll into view, to make sure its rendered
+            if (matchesFooterCell(cell, text)) {
+                return Optional.of(cell);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Get the text content of all visible footer cells.
+     *
+     * @return list of footer cell text contents
+     */
+    public List<String> getFooterCellContents() {
+        int count = getColumnCount();
+        List<String> footers = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            var footerCell = findFooterCell(i);
+            if (!footerCell.isPresent()) {
+                throw new IllegalStateException("No footer cell found at column index " + i);
+            }
+            footers.add(footerCell.get().getCellContentLocator().innerText());
+        }
+        return footers;
+    }
+
+    /**
+     * Determine if a footer cell matches the given text. By default, compares the trimmed innerText of the cell content.
+     * Can be overridden for custom matching logic (e.g. ignoring case, or matching only a part of the text).
+     *
+     * @param cell the footer cell to check
+     * @param text the footer text to match
+     * @return {@code true} if the cell matches the text, {@code false} otherwise
+     */
+    protected boolean matchesFooterCell(CellElement cell, String text) {
+        return Objects.equals(cell.getCellContentLocator().innerText(), text);
+    }
+
     // ── Cell Content Access ────────────────────────────────────────────
 
     /**
@@ -353,74 +474,34 @@ public class GridElement extends VaadinElement
      */
     protected Optional<RowElement> findRow(int rowIndex, int headerRowCount) {
         var ariaRowIndex = rowIndex + 1 + headerRowCount;
-        // Attempt to find the row directly
         var foundRow = locator.locator("tbody tr[aria-rowIndex=\"" + ariaRowIndex + "\"]").first();
         if (foundRow.count() == 0) {
-            // Row not found, try scrolling to it
-            var foundRowByScrolling = findRowByScrolling(locator, ariaRowIndex);
-            if (foundRowByScrolling.isEmpty()) {
+            // Row not rendered: jump straight to it instead of paging through the
+            // rows in between, which could give up on a slow render
+            if (!scrollToFlatIndex(rowIndex)) {
                 return Optional.empty();
-            } else {
-                foundRow = foundRowByScrolling.get();
             }
-        } else {
-            foundRow.scrollIntoViewIfNeeded();
             waitForGridToStopLoading();
+            if (foundRow.count() == 0) {
+                return Optional.empty();
+            }
         }
+        foundRow.scrollIntoViewIfNeeded();
+        waitForGridToStopLoading();
 
         return Optional.of(new RowElement(foundRow, rowIndex));
     }
 
-    private Optional<Locator> findRowByScrolling(Locator grid, int ariaRowIndex) {
-        return findRowByScrolling(grid, null, ariaRowIndex);
-    }
-
-    private Optional<Locator> findRowByScrolling(Locator grid, RowRangeData previousRowRangeData, int ariaRowIndex) {
-        var visibleRows = grid.locator("tbody tr").all();
-        if (visibleRows.isEmpty()) {
-            return Optional.empty();
-        }
-
-        var rowRangeData = new RowRangeData(visibleRows);
-
-        if (!areNewRowsLoaded(previousRowRangeData, rowRangeData, ariaRowIndex)) {
-            return Optional.empty();
-        }
-
-        if (ariaRowIndex < rowRangeData.getMin()) {
-            // Scroll up
-            rowRangeData.getMinRowLocator().evaluate("el => el.scrollIntoView({ block: 'end', inline: 'nearest' })");
-        } else {
-            // Scroll down
-            rowRangeData.getMaxRowLocator().evaluate("el => el.scrollIntoView({ block: 'start', inline: 'nearest' })");
-        }
-
-        waitForGridToStopLoading();
-
-        // Attempt to find the required row after scrolling
-        var foundRow = grid.locator("tbody tr[aria-rowIndex=\"" + ariaRowIndex + "\"]").first();
-        if (foundRow.count() == 0) {
-            // Keep scrolling
-            return findRowByScrolling(grid, rowRangeData, ariaRowIndex);
-        } else {
-            foundRow.scrollIntoViewIfNeeded();
-            waitForGridToStopLoading();
-        }
-
-        return Optional.of(foundRow);
-    }
-
-    private static boolean areNewRowsLoaded(RowRangeData previousRowRangeData, RowRangeData currentRowRangeData, int targetAriaRowIndex) {
-        if (previousRowRangeData == null) {
-            return true;
-        }
-
-        // Check if the current row range has expanded in the direction of the target row index
-        if (targetAriaRowIndex < previousRowRangeData.getMin()) {
-            return currentRowRangeData.getMin() < previousRowRangeData.getMin();
-        } else {
-            return currentRowRangeData.getMax() > previousRowRangeData.getMax();
-        }
+    /**
+     * Scroll the grid so that the row at the given flat index gets rendered.
+     *
+     * @param flatIndex 0-based index among all rows, counting expanded children in a tree grid
+     * @return {@code false} if the index is beyond the last row, {@code true} otherwise
+     */
+    private boolean scrollToFlatIndex(int flatIndex) {
+        return (boolean) locator.evaluate(
+                "(g, i) => { if (i >= g._flatSize) return false; g._scrollToFlatIndex(i); return true; }",
+                flatIndex);
     }
 
     /**
@@ -478,6 +559,17 @@ public class GridElement extends VaadinElement
     public void select(int rowIndex) {
         var rowOptional = findRow(rowIndex);
         rowOptional.ifPresent(this::select);
+    }
+    
+    /**
+     * RJM. The select method calls waitForGridToStopLoading(), which
+     * fails if clicking the row navigated somewhere else in the app (a hyperlink).
+     */
+    public void clickRow(int rowIndex) {
+      var rowOptional = findRow(rowIndex);
+      if (rowOptional.isEmpty()) return;
+      CellElement cell = rowOptional.get().getCell(0);
+      cell.click();
     }
 
     /**
@@ -649,44 +741,362 @@ public class GridElement extends VaadinElement
     }
 
 
-    private class RowRangeData {
-        Integer min;
-        Locator minRow;
-        Integer max;
-        Locator maxRow;
-
-        public RowRangeData(List<Locator> rows) {
-            for (var row : rows) {
-                var rowIndexStr = row.getAttribute("aria-rowIndex");
-                if (rowIndexStr != null && !rowIndexStr.isEmpty()) {
-                    int rowIndex = Integer.parseInt(rowIndexStr);
-                    if (min == null || rowIndex < min) {
-                        min = rowIndex;
-                        minRow = row;
-                    }
-                    if (max == null || rowIndex > max) {
-                        max = rowIndex;
-                        maxRow = row;
-                    }
-                }
-            }
+    /**
+     * Whether the row with the given index is currently scrolled into view
+     * (at least partially visible between the header and footer), without
+     * triggering any scrolling.
+     *
+     * @param rowIndex row index, starting from 0.
+     * @return {@code true} if the row is rendered and at least partially visible, {@code false} otherwise
+     */
+    public boolean isRowInView(int rowIndex) {
+        if (rowIndex < 0) {
+            throw new IllegalArgumentException("Row index must be non-negative");
         }
-
-        public Integer getMin() {
-            return min;
+        var ariaRowIndex = rowIndex + 1 + getHeaderRowCount();
+        var row = locator.locator("tbody tr[aria-rowIndex=\"" + ariaRowIndex + "\"]").first();
+        if (row.count() == 0) {
+            return false;
         }
+        return (boolean) row.evaluate(
+                "tr => { const grid = tr.getRootNode().host;"
+                        + " const r = tr.getBoundingClientRect();"
+                        + " const top = grid.$.header.getBoundingClientRect().bottom;"
+                        + " const bottom = grid.$.footer.getBoundingClientRect().top;"
+                        + " return r.bottom > top && r.top < bottom; }");
+    }
 
-        public Integer getMax() {
-            return max;
-        }
+    // ── Assertions ─────────────────────────────────────────────────────
 
-        public Locator getMinRowLocator() {
-            return minRow;
-        }
+    /**
+     * Assert that the grid has the given total number of rows (data items).
+     *
+     * @param expected the expected total row count
+     */
+    public void assertRowCount(int expected) {
+        locator.page().waitForCondition(() -> getTotalRowCount() == expected);
+    }
 
-        public Locator getMaxRowLocator() {
-            return maxRow;
+    /**
+     * Assert that the grid has no rows.
+     */
+    public void assertEmpty() {
+        assertRowCount(0);
+    }
+
+    /**
+     * Assert that the grid has the given number of visible (non-hidden) columns.
+     *
+     * @param expected the expected visible column count
+     */
+    public void assertColumnCount(int expected) {
+        locator.page().waitForCondition(() -> getColumnCount() == expected);
+    }
+
+    /**
+     * Assert that {@code allRowsVisible} is enabled.
+     */
+    public void assertAllRowsVisible() {
+        locator.page().waitForCondition(this::isAllRowsVisible);
+    }
+
+    /**
+     * Assert that {@code allRowsVisible} is not enabled.
+     */
+    public void assertNotAllRowsVisible() {
+        locator.page().waitForCondition(() -> !isAllRowsVisible());
+    }
+
+    /**
+     * Assert that multi-sort is enabled.
+     */
+    public void assertMultiSort() {
+        locator.page().waitForCondition(this::isMultiSort);
+    }
+
+    /**
+     * Assert that multi-sort is not enabled.
+     */
+    public void assertNotMultiSort() {
+        locator.page().waitForCondition(() -> !isMultiSort());
+    }
+
+    /**
+     * Assert that column reordering is allowed.
+     */
+    public void assertColumnReorderingAllowed() {
+        locator.page().waitForCondition(this::isColumnReorderingAllowed);
+    }
+
+    /**
+     * Assert that column reordering is not allowed.
+     */
+    public void assertColumnReorderingNotAllowed() {
+        locator.page().waitForCondition(() -> !isColumnReorderingAllowed());
+    }
+
+    /**
+     * Assert that the body cell at the given row and column has the given text content.
+     * Auto-scrolls the grid if necessary to bring the row into view.
+     *
+     * @param row      row index, starting from 0.
+     * @param column   column index, starting from 0.
+     * @param expected the expected cell text content
+     */
+    public void assertCellContent(int row, int column, String expected) {
+        var cell = findCell(row, column);
+        if (!cell.isPresent()) {
+            throw new AssertionError("No cell found at row " + row + ", column " + column);
         }
+        assertThat(cell.get().getCellContentLocator()).hasText(expected);
+    }
+
+    /**
+     * Assert that the body cell at the given row and column header has the given text content.
+     * Auto-scrolls the grid if necessary to bring the row into view.
+     *
+     * @param row              row index, starting from 0.
+     * @param columnHeaderText the header text of the column.
+     * @param expected         the expected cell text content
+     */
+    public void assertCellContent(int row, String columnHeaderText, String expected) {
+        var cell = findCell(row, columnHeaderText);
+        if (!cell.isPresent()) {
+            throw new AssertionError("No cell found at row " + row + ", column '" + columnHeaderText + "'");
+        }
+        assertThat(cell.get().getCellContentLocator()).hasText(expected);
+    }
+
+    /**
+     * Assert that a cell exists at the given row and column.
+     *
+     * @param row    row index, starting from 0.
+     * @param column column index, starting from 0.
+     */
+    public void assertCellPresent(int row, int column) {
+        locator.page().waitForCondition(() -> cellExists(row, column));
+    }
+
+    /**
+     * Assert that no cell exists at the given row and column.
+     *
+     * @param row    row index, starting from 0.
+     * @param column column index, starting from 0.
+     */
+    public void assertCellNotPresent(int row, int column) {
+        locator.page().waitForCondition(() -> !cellExists(row, column));
+    }
+
+    /**
+     * Whether a cell exists at the given row and column. Unlike {@link #findCell(int, int)},
+     * this treats an out-of-range column (which {@code findCell} reports by throwing) as "not present".
+     */
+    private boolean cellExists(int row, int column) {
+        try {
+            return findCell(row, column).isPresent();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Assert that the visible header cells have exactly the given text contents, in order.
+     *
+     * @param expected the expected header cell text contents
+     */
+    public void assertHeaderCellContents(String... expected) {
+        locator.page().waitForCondition(() -> getHeaderCellContents().equals(List.of(expected)));
+    }
+
+    /**
+     * Assert that the header cell at the given column has the given text content.
+     *
+     * @param column   column index, starting from 0.
+     * @param expected the expected header cell text content
+     */
+    public void assertHeaderCell(int column, String expected) {
+        var headerCell = findHeaderCell(column);
+        if (!headerCell.isPresent()) {
+            throw new AssertionError("No header cell found at column " + column);
+        }
+        assertThat(headerCell.get().getCellContentLocator()).hasText(expected);
+    }
+
+    /**
+     * Assert that a column with the given header text exists.
+     *
+     * @param headerText the header text to look for
+     */
+    public void assertColumnPresent(String headerText) {
+        locator.page().waitForCondition(() -> findHeaderCellByText(headerText).isPresent());
+    }
+
+    /**
+     * Assert that no column with the given header text exists.
+     *
+     * @param headerText the header text to look for
+     */
+    public void assertColumnNotPresent(String headerText) {
+        locator.page().waitForCondition(() -> !findHeaderCellByText(headerText).isPresent());
+    }
+
+    /**
+     * Assert that the visible footer cells have exactly the given text contents, in order.
+     *
+     * @param expected the expected footer cell text contents
+     */
+    public void assertFooterCellContents(String... expected) {
+        locator.page().waitForCondition(() -> getFooterCellContents().equals(List.of(expected)));
+    }
+
+    /**
+     * Assert that the footer cell at the given column has the given text content.
+     *
+     * @param column   column index, starting from 0.
+     * @param expected the expected footer cell text content
+     */
+    public void assertFooterCell(int column, String expected) {
+        var footerCell = findFooterCell(column);
+        if (!footerCell.isPresent()) {
+            throw new AssertionError("No footer cell found at column " + column);
+        }
+        assertThat(footerCell.get().getCellContentLocator()).hasText(expected);
+    }
+
+    /**
+     * Assert that a footer cell with the given text exists.
+     *
+     * @param footerText the footer text to look for
+     */
+    public void assertFooterPresent(String footerText) {
+        locator.page().waitForCondition(() -> findFooterCellByText(footerText).isPresent());
+    }
+
+    /**
+     * Assert that no footer cell with the given text exists.
+     *
+     * @param footerText the footer text to look for
+     */
+    public void assertFooterNotPresent(String footerText) {
+        locator.page().waitForCondition(() -> !findFooterCellByText(footerText).isPresent());
+    }
+
+    /**
+     * Assert that a row exists at the given index (auto-scrolling if necessary).
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertRowPresent(int rowIndex) {
+        locator.page().waitForCondition(() -> findRow(rowIndex).isPresent());
+    }
+
+    /**
+     * Assert that no row exists at the given index.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertRowNotPresent(int rowIndex) {
+        locator.page().waitForCondition(() -> !findRow(rowIndex).isPresent());
+    }
+
+    /**
+     * Assert that the row with the given index is currently scrolled into view.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertRowInView(int rowIndex) {
+        locator.page().waitForCondition(() -> isRowInView(rowIndex));
+    }
+
+    /**
+     * Assert that the row with the given index is not currently scrolled into view.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertRowNotInView(int rowIndex) {
+        locator.page().waitForCondition(() -> !isRowInView(rowIndex));
+    }
+
+    /**
+     * Assert that the cells in the given column with the given text appear at exactly the given row indexes.
+     *
+     * @param column   column index, starting from 0.
+     * @param text     the text to match in the cell content.
+     * @param expected the expected row indexes (in order)
+     */
+    public void assertRowIndexesWithColumnText(int column, String text, Integer... expected) {
+        locator.page().waitForCondition(
+                () -> findRowIndexesWithColumnText(column, text).equals(List.of(expected)));
+    }
+
+    /**
+     * Assert that the given number of items are currently selected.
+     *
+     * @param expected the expected selected item count
+     */
+    public void assertSelectedItemCount(int expected) {
+        locator.page().waitForCondition(() -> getSelectedItemCount() == expected);
+    }
+
+    /**
+     * Assert that the row at the given index is selected.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertRowSelected(int rowIndex) {
+        locator.page().waitForCondition(
+                () -> findRow(rowIndex).map(RowElement::isSelected).orElse(false));
+    }
+
+    /**
+     * Assert that the row at the given index is not selected.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertRowNotSelected(int rowIndex) {
+        locator.page().waitForCondition(
+                () -> findRow(rowIndex).map(row -> !row.isSelected()).orElse(false));
+    }
+
+    /**
+     * Assert that the select-all checkbox is checked.
+     */
+    public void assertSelectAllChecked() {
+        locator.page().waitForCondition(this::isSelectAllChecked);
+    }
+
+    /**
+     * Assert that the select-all checkbox is unchecked.
+     */
+    public void assertSelectAllUnchecked() {
+        locator.page().waitForCondition(this::isSelectAllUnchecked);
+    }
+
+    /**
+     * Assert that the select-all checkbox is indeterminate.
+     */
+    public void assertSelectAllIndeterminate() {
+        locator.page().waitForCondition(this::isSelectAllIndeterminate);
+    }
+
+    /**
+     * Assert that the details panel of the row at the given index is open.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertDetailsOpen(int rowIndex) {
+        locator.page().waitForCondition(
+                () -> findRow(rowIndex).map(RowElement::isDetailsOpen).orElse(false));
+    }
+
+    /**
+     * Assert that the details panel of the row at the given index is closed.
+     *
+     * @param rowIndex row index, starting from 0.
+     */
+    public void assertDetailsClosed(int rowIndex) {
+        locator.page().waitForCondition(
+                () -> findRow(rowIndex).map(row -> !row.isDetailsOpen()).orElse(false));
     }
 
     /**
@@ -737,6 +1147,24 @@ public class GridElement extends VaadinElement
          */
         public Locator getCellContentLocator() {
             return cellContent;
+        }
+
+        /**
+         * Get the rendered text of the cell content.
+         *
+         * @return the text of the cell content
+         */
+        public String getText() {
+            return cellContent.innerText();
+        }
+
+        /**
+         * Assert that the cell content has the given text.
+         *
+         * @param expected the expected cell text content
+         */
+        public void assertText(String expected) {
+            assertThat(cellContent).hasText(expected);
         }
 
         /**
@@ -817,6 +1245,41 @@ public class GridElement extends VaadinElement
         }
 
         /**
+         * Assert that the column is sorted in ascending order.
+         */
+        public void assertSortAscending() {
+            locator.page().waitForCondition(this::isSortAscending);
+        }
+
+        /**
+         * Assert that the column is sorted in descending order.
+         */
+        public void assertSortDescending() {
+            locator.page().waitForCondition(this::isSortDescending);
+        }
+
+        /**
+         * Assert that the column is not sorted.
+         */
+        public void assertNotSorted() {
+            locator.page().waitForCondition(this::isNotSorted);
+        }
+
+        /**
+         * Assert that the header cell supports sorting.
+         */
+        public void assertSortable() {
+            locator.page().waitForCondition(this::isSortable);
+        }
+
+        /**
+         * Assert that the header cell does not support sorting.
+         */
+        public void assertNotSortable() {
+            locator.page().waitForCondition(() -> !isSortable());
+        }
+
+        /**
          * Get the current sort direction of the column.
          * Returns "asc" for ascending, "desc" for descending, and null or empty string for not sorted.
          *
@@ -837,6 +1300,16 @@ public class GridElement extends VaadinElement
          */
         private Locator getSorterLocator() {
             return getCellContentLocator().locator("vaadin-grid-sorter");
+        }
+    }
+
+    /**
+     * Represents a footer cell in the grid, providing access to the table cell (td)
+     * and the cell content.
+     */
+    public class FooterCellElement extends CellElement {
+        public FooterCellElement(Locator tableCell, int columnIndex) {
+            super(tableCell, columnIndex);
         }
     }
 
@@ -976,6 +1449,34 @@ public class GridElement extends VaadinElement
          */
         public boolean isDetailsOpen() {
             return getRowLocator().getAttribute("details-opened") != null;
+        }
+
+        /**
+         * Assert that this row is selected.
+         */
+        public void assertSelected() {
+            locator.page().waitForCondition(this::isSelected);
+        }
+
+        /**
+         * Assert that this row is not selected.
+         */
+        public void assertNotSelected() {
+            locator.page().waitForCondition(() -> !isSelected());
+        }
+
+        /**
+         * Assert that this row's details panel is open.
+         */
+        public void assertDetailsOpen() {
+            locator.page().waitForCondition(this::isDetailsOpen);
+        }
+
+        /**
+         * Assert that this row's details panel is closed.
+         */
+        public void assertDetailsClosed() {
+            locator.page().waitForCondition(() -> !isDetailsOpen());
         }
     }
 }

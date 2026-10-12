@@ -1,15 +1,12 @@
 package org.vaadin.addons.dramafinder.element;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.assertions.LocatorAssertions.HasCountOptions;
-import com.microsoft.playwright.options.AriaRole;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAllowedCharPatternElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
@@ -17,12 +14,15 @@ import org.vaadin.addons.dramafinder.element.shared.HasClearButtonElement;
 import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
 import org.vaadin.addons.dramafinder.element.shared.HasInputFieldElement;
 import org.vaadin.addons.dramafinder.element.shared.HasPlaceholderElement;
-
+import org.vaadin.addons.dramafinder.element.shared.HasReadOnlyElement;
 import org.vaadin.addons.dramafinder.element.shared.HasThemeElement;
 import org.vaadin.addons.dramafinder.element.shared.HasTooltipElement;
 import org.vaadin.addons.dramafinder.element.shared.HasValidationPropertiesElement;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
+import org.vaadin.addons.dramafinder.element.utils.ItemLocator;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 
 /**
  * PlaywrightElement for {@code <vaadin-multi-select-combo-box>}.
@@ -35,7 +35,7 @@ public class MultiSelectComboBoxElement extends VaadinElement
     implements FocusableElement,HasAriaLabelElement,HasInputFieldElement,
     HasThemeElement,HasPlaceholderElement,
     HasEnabledElement,HasTooltipElement,HasValidationPropertiesElement,
-    HasClearButtonElement,HasAllowedCharPatternElement {
+    HasClearButtonElement,HasAllowedCharPatternElement, HasReadOnlyElement {
 
 	public static final String FIELD_TAG_NAME = "vaadin-multi-select-combo-box";
 	public static final String FIELD_ITEM_TAG_NAME = "vaadin-multi-select-combo-box-item";
@@ -166,6 +166,17 @@ public class MultiSelectComboBoxElement extends VaadinElement
 		}
 	}
 
+  /**
+   * Type filter text into the input, then click the matching item.
+   *
+   * @param filter text to type for filtering
+   * @param item   label of the item to select
+   */
+  public void filterAndSelectItem(String filter, String item) {
+      setFilter(filter);
+      getOverlayItem(item).click();
+  }
+
 	/**
 	 * Select multiple items in sequence.
 	 * Any existing selected items not in the argument list will remain selected.
@@ -239,7 +250,7 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 *          label of the item to select
 	 */
 	@Deprecated //the match does not work
-	public void filterAndToggleItem(String filter, String item) {
+	private void filterAndToggleItem(String filter, String item) {
 		setFilter(filter);
     //start and end matches the entire string. Escape the string in case it contains regex characters
     String escapedRegex = Pattern.quote(item);
@@ -425,16 +436,17 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 */
 	@SuppressWarnings("unchecked")
 	public List<String> getSelectedItems() {
-		Object result = evaluateSelectedItems();
-		if (result instanceof List<?> list) {
-			List<String> items = new ArrayList<>();
-			for (Object item : list) {
-				items.add(String.valueOf(item));
-			}
-			return items;
-		}
-		return Collections.emptyList();
-	}
+    Object result = getLocator().evaluate(
+        "el => (el.selectedItems || []).map(i => typeof i === 'string' ? i : i[el.itemLabelPath || 'label'] || String(i))");
+if (result instanceof List<?> list) {
+    List<String> items = new ArrayList<>();
+    for (Object item : list) {
+        items.add(String.valueOf(item));
+    }
+    return items;
+}
+return Collections.emptyList();
+}
 
 	private Object evaluateSelectedItems() {
 		return getLocator().evaluate(
@@ -562,20 +574,21 @@ public class MultiSelectComboBoxElement extends VaadinElement
 	 * @return the matching {@code MultiSelectComboBoxElement}
 	 */
 	public static MultiSelectComboBoxElement getByLabel(Locator locator, String label) {
-		return new MultiSelectComboBoxElement(
-		    locator.locator(FIELD_TAG_NAME)
-		        .filter(new Locator.FilterOptions().setHas(locator.getByLabel(label)))
-		        .first());
-	}
+    return new MultiSelectComboBoxElement(
+        AccessibleNameLocator.find(locator, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
+}
 
 	// ── Internal ───────────────────────────────────────────────────────
 
-	private Locator getOverlayItem(String label) {
-		return getLocator().page().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-		    .filter(new Locator.FilterOptions()
-		        .setHasText(label))
-		    .first();
-	}
+  /**
+   * Locator for a dropdown item, matched on its full label. {@code "Option 1"}
+   * does not resolve to {@code "Option 10"}, and two visible items sharing the
+   * label fail with a Playwright strict-mode error.
+   */
+  private Locator getOverlayItem(String label) {
+      return ItemLocator.byExactText(getLocator(),
+              FIELD_ITEM_TAG_NAME + ":not([hidden])", label);
+  }
 
   //Force an exact match. Wait in case it requires a lazy evaluation
 	@Deprecated //not working

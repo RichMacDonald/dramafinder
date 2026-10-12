@@ -1,20 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.vaadin.addons</groupId>
     <artifactId>dramafinder</artifactId>
-    <version>1.1.1-SNAPSHOT-rjm</version>
+    <version>1.2.1-SNAPSHOT-rjm</version>
     <packaging>jar</packaging>
     <url>https://github.com/parttio/dramafinder</url>
 
     <name>Drama Finder</name>
-    <description>Playwright utility classes for Vaadin</description>
+    <!-- The pom is one of only two DramaFinder files a dependency resolve puts
+         in ~/.m2, so it is where an offline reader looks first. Point them at
+         the docs bundled in the jar rather than let them decompile it. -->
+    <description>Playwright utility classes for Vaadin. The full API reference
+        is bundled in the jar
+        at META-INF/dramafinder/api-reference.md, with a short guide beside it
+        at
+        META-INF/dramafinder/START-HERE.md — read those instead of decompiling
+        the classes.
+    </description>
 
     <properties>
-        <vaadin.version>25.0.6</vaadin.version>
+        <vaadin.version>25.3.0</vaadin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8
         </project.reporting.outputEncoding>
@@ -24,7 +31,7 @@
         <github.account>parttio</github.account>
         <github.project>dramafinder</github.project>
         <!-- used for testing -->
-        <spring.boot.version>4.0.3</spring.boot.version>
+        <spring.boot.version>4.1.1</spring.boot.version>
     </properties>
 
     <organization>
@@ -84,7 +91,7 @@
         <dependency>
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
-            <version>1.55.0</version>
+            <version>1.59.0</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-api -->
         <dependency>
@@ -119,6 +126,78 @@
     </dependencies>
     <build>
         <plugins>
+            <!-- Bundle the generated agent-facing docs into the jar.
+
+                 An agent working offline has only the jar and the pom: Maven
+                 does not resolve -sources or any other classifier unless asked,
+                 so a separate docs artifact would never arrive. Shipping the
+                 references inside the main jar is what stops agents reaching
+                 for `jar xf` + `javap` to discover the API. They stay generated
+                 into skills/ (the copy that travels with the Claude Code
+                 plugin) and are copied from there, so there is one source of
+                 truth and no duplicate committed to git. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>bundle-agent-docs</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>
+                                ${project.build.outputDirectory}/META-INF/dramafinder
+                            </outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>
+                                        ${project.basedir}/skills/vaadin-playwright-test
+                                    </directory>
+                                    <includes>
+                                        <include>api-reference.md</include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                                <resource>
+                                    <directory>
+                                        ${project.basedir}/skills/vaadin-playwright-screenshot
+                                    </directory>
+                                    <includes>
+                                        <include>agent-api-reference.md
+                                        </include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Name the bundled docs in the manifest, so `unzip -p <jar>
+                 META-INF/MANIFEST.MF` also leads to them. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Dramafinder-Start-Here>
+                                META-INF/dramafinder/START-HERE.md
+                            </Dramafinder-Start-Here>
+                            <Dramafinder-Api-Reference>
+                                META-INF/dramafinder/api-reference.md
+                            </Dramafinder-Api-Reference>
+                            <Dramafinder-Agent-Api-Reference>
+                                META-INF/dramafinder/agent-api-reference.md
+                            </Dramafinder-Agent-Api-Reference>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -193,6 +272,15 @@
                         <groupId>com.vaadin</groupId>
                         <artifactId>vaadin-maven-plugin</artifactId>
                         <version>${vaadin.version}</version>
+                        <configuration>
+                            <!-- The demo views are test-only, so the feature
+                                 flags enabling experimental components live in
+                                 the test resources instead of
+                                 src/main/resources. -->
+                            <javaResourceFolder>
+                                ${project.basedir}/src/test/resources
+                            </javaResourceFolder>
+                        </configuration>
                         <executions>
                             <execution>
                                 <goals>

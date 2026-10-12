@@ -1,15 +1,15 @@
 package org.vaadin.addons.dramafinder.element;
 
 import java.util.List;
-import java.util.regex.Pattern;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
-import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
+import org.vaadin.addons.dramafinder.element.shared.HasDisabledAttributeElement;
 import org.vaadin.addons.dramafinder.element.shared.HasStyleElement;
 import org.vaadin.addons.dramafinder.element.shared.HasTooltipElement;
+import org.vaadin.addons.dramafinder.element.utils.ItemLocator;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -22,7 +22,7 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 @PlaywrightElement(ListBoxElement.FIELD_TAG_NAME)
 public class ListBoxElement extends VaadinElement
         implements HasAriaLabelElement, HasStyleElement, HasTooltipElement,
-        HasEnabledElement {
+        HasDisabledAttributeElement {
 
     public static final String FIELD_TAG_NAME = "vaadin-list-box";
     public static final String FIELD_ITEM_TAG_NAME = "vaadin-item";
@@ -77,21 +77,6 @@ public class ListBoxElement extends VaadinElement
         }
     }
 
-    @Override
-    public boolean isEnabled() {
-        return getEnabledLocator().isEnabled();
-    }
-
-    @Override
-    public void assertEnabled() {
-        assertThat(getLocator()).not().hasAttribute("disabled", Pattern.compile(".*"));
-    }
-
-    @Override
-    public void assertDisabled() {
-        assertThat(getLocator()).hasAttribute("disabled", "");
-    }
-
     /**
      * Assert that a specific item is enabled.
      */
@@ -124,10 +109,13 @@ public class ListBoxElement extends VaadinElement
         assertThat(getLocator()).not().hasAttribute(MULTIPLE_ATTRIBUTE, "");
     }
 
+    /**
+     * Locator for an item, matched on its full label. {@code "Option 1"} does not
+     * resolve to {@code "Option 10"}, and two items sharing the label fail with a
+     * Playwright strict-mode error.
+     */
     private Locator getItem(String label) {
-        return locator.locator(FIELD_ITEM_TAG_NAME)
-                .filter(new Locator.FilterOptions()
-                        .setHasText(label)).first();
+        return ItemLocator.byExactText(locator, FIELD_ITEM_TAG_NAME, label);
     }
 
 

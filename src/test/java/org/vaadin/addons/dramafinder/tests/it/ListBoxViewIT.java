@@ -6,6 +6,8 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.vaadin.addons.dramafinder.element.ListBoxElement;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 public class ListBoxViewIT extends SpringPlaywrightIT {
@@ -56,12 +58,15 @@ public class ListBoxViewIT extends SpringPlaywrightIT {
     public void testEnabledDisabled() {
         ListBoxElement listBox = ListBoxElement.getByLabel(page, "Enabled/Disabled Field");
         listBox.assertDisabled();
+        assertFalse(listBox.isEnabled());
+        assertTrue(listBox.isEnabled(false));
         listBox.assertItemDisabled("Most recent first");
         listBox.assertItemDisabled("Always disabled");
 
         page.locator("#enable-disable-button").click();
 
         listBox.assertEnabled();
+        assertTrue(listBox.isEnabled());
         listBox.assertItemEnabled("Most recent first");
         listBox.assertItemDisabled("Always disabled");
     }
@@ -91,9 +96,12 @@ public class ListBoxViewIT extends SpringPlaywrightIT {
         ListBoxElement listBox = ListBoxElement.getByLabel(page, "Multiple data");
         listBox.assertVisible();
         listBox.assertSelectedValue();
+        // Item lookups match the item's full label exactly, so the rendered
+        // "JohnDoe" is not reached by "Johndoe" or "John", nor "namesurname" by
+        // "name".
         listBox.selectItem("JohnDoe");
-        listBox.assertSelectedValue("Johndoe");
-        listBox.selectItem("name");
-        listBox.assertSelectedValue("John", "namesurname");
+        listBox.assertSelectedValue("JohnDoe");
+        listBox.selectItem("namesurname");
+        listBox.assertSelectedValue("JohnDoe", "namesurname");
     }
 }

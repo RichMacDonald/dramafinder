@@ -1,9 +1,6 @@
 package org.vaadin.addons.dramafinder.element;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAllowedCharPatternElement;
@@ -13,13 +10,14 @@ import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
 import org.vaadin.addons.dramafinder.element.shared.HasInputFieldElement;
 import org.vaadin.addons.dramafinder.element.shared.HasPlaceholderElement;
 import org.vaadin.addons.dramafinder.element.shared.HasPrefixElement;
+import org.vaadin.addons.dramafinder.element.shared.HasReadOnlyElement;
 import org.vaadin.addons.dramafinder.element.shared.HasThemeElement;
 import org.vaadin.addons.dramafinder.element.shared.HasTooltipElement;
 import org.vaadin.addons.dramafinder.element.shared.HasValidationPropertiesElement;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
+import org.vaadin.addons.dramafinder.element.utils.ItemLocator;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
-import com.microsoft.playwright.assertions.LocatorAssertions;
-import com.microsoft.playwright.assertions.LocatorAssertions.HasCountOptions;
 import com.microsoft.playwright.options.AriaRole;
 
 /**
@@ -33,7 +31,7 @@ public class ComboBoxElement extends VaadinElement
         implements FocusableElement, HasAriaLabelElement, HasInputFieldElement,
         HasPrefixElement, HasThemeElement, HasPlaceholderElement,
         HasEnabledElement, HasTooltipElement, HasValidationPropertiesElement,
-        HasClearButtonElement, HasAllowedCharPatternElement {
+        HasClearButtonElement, HasAllowedCharPatternElement, HasReadOnlyElement {
 
     public static final String FIELD_TAG_NAME = "vaadin-combo-box";
     public static final String FIELD_ITEM_TAG_NAME = "vaadin-combo-box-item";
@@ -76,6 +74,7 @@ public class ComboBoxElement extends VaadinElement
     }
 
     /**
+     *
      * Assert that the displayed value equals the expected string.
      *
      * @param expected expected label or empty string for no selection
@@ -86,10 +85,21 @@ public class ComboBoxElement extends VaadinElement
     }
 
     /**
+     * Select the item whose label equals {@code value}, by typing it as a filter
+     * and closing the overlay once the matching item is shown.
+     *
+     * @param value label of the item to select
+     */
+    @Override
+    public void setValue(String value) {
+        getInputLocator().fill(value);
+        assertThat(getOverlayItem(value)).isVisible();
+        close();
+    }
+
+    /**
      * Select an item by its visible label.
      * Opens the overlay, clicks the matching item.
-     * RJM: Ought to be named toggleItem()
-     * Caution that this selects the FIRST matching item
      *
      * @param item label of the item to select
      */
@@ -107,25 +117,25 @@ public class ComboBoxElement extends VaadinElement
      */
     public void filterAndSelectItem(String filter, String item) {
         setFilter(filter);
-        getOverlayItem(item).click(); //if there are multiple matches, it picks the first one.
+        getOverlayItem(item).click();
         close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
     }
 
-    /**
-     * Type filter text into the input, then click the matching item.
-     * The text is an exact match
-     *
-     * @param filter text to type for filtering
-     * @param item   label of the item to select
-     */
-    public void filterAndSelectExactItem(String filter, String item) {
-        setFilter(filter);
-        //start and end matches the entire string. Escape the string in case it contains regex characters
-        String escapedRegex = Pattern.quote(item);
-  				Pattern exactMatch = Pattern.compile("^\\s*" + escapedRegex + "\\s*$");
-  				getOverlayItemPainful(filter, exactMatch).click(); //have this this return null and fail, so need to add null pointer handling
-        close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
-    }
+//    /**
+//     * Type filter text into the input, then click the matching item.
+//     * The text is an exact match
+//     *
+//     * @param filter text to type for filtering
+//     * @param item   label of the item to select
+//     */
+//    public void filterAndSelectExactItemX(String filter, String item) {
+//        setFilter(filter);
+//        //start and end matches the entire string. Escape the string in case it contains regex characters
+//        String escapedRegex = Pattern.quote(item);
+//  				Pattern exactMatch = Pattern.compile("^\\s*" + escapedRegex + "\\s*$");
+//  				getOverlayItemPainful(filter, exactMatch).click(); //have this this return null and fail, so need to add null pointer handling
+//        close(); //belt and suspenders. sometimes may stay open, which prevents playwright from working on the next selector.
+//    }
 
     /**
      * Type into the input to trigger filtering.
@@ -135,9 +145,9 @@ public class ComboBoxElement extends VaadinElement
      * @param filter the filter text
      */
     public void setFilter(String filter) {
-    			// Need to clear the input field, otherwise it will append to whatever is already selected.
-    			// Do not call clear() because that is a server roundtrip and could respond with a non-empty default value. So clear the field directly, whithout an event
-    			getInputLocator().clear();
+        // Clear input directly to avoid clear() triggering a server roundtrip
+        // that may restore a non-empty default value.
+        getInputLocator().clear();
         open();
         getInputLocator().pressSequentially(filter);
     }
@@ -190,29 +200,6 @@ public class ComboBoxElement extends VaadinElement
     }
 
     /**
-     * Whether the combo box is read-only.
-     *
-     * @return {@code true} when read-only
-     */
-    public boolean isReadOnly() {
-        return getLocator().getAttribute("readonly") != null;
-    }
-
-    /**
-     * Assert that the combo box is read-only.
-     */
-    public void assertReadOnly() {
-        assertThat(getLocator()).hasAttribute("readonly", "");
-    }
-
-    /**
-     * Assert that the combo box is not read-only.
-     */
-    public void assertNotReadOnly() {
-        assertThat(getLocator()).not().hasAttribute("readonly", "");
-    }
-
-    /**
      * Locator for the toggle button part.
      *
      * @return locator for the toggle button
@@ -229,7 +216,7 @@ public class ComboBoxElement extends VaadinElement
     }
 
     /**
-     * Count visible overlay items. (Should be renamed to getVisibleOverlayItemCount)
+     * Count visible overlay items.
      *
      * @return the number of visible items
      */
@@ -243,7 +230,7 @@ public class ComboBoxElement extends VaadinElement
      *
      * @return the number of visible items
      */
-    public int getAllOverlayItemCount() {
+    public int getAllOverlayItemCountX() {
     			ensureOpenedOnce();
         return getLocator().locator(FIELD_ITEM_TAG_NAME).count(); //Use the Locator, not the page, otherwise you get all the other ComboBox values on the Page.
     }
@@ -266,11 +253,7 @@ public class ComboBoxElement extends VaadinElement
      */
     public static ComboBoxElement getByLabel(Page page, String label) {
         return new ComboBoxElement(
-                page.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions()
-                                .setHas(page.getByRole(AriaRole.COMBOBOX,
-                                        new Page.GetByRoleOptions().setName(label)))
-                        ).first());
+                AccessibleNameLocator.find(page, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
     }
 
     /**
@@ -282,125 +265,17 @@ public class ComboBoxElement extends VaadinElement
      */
     public static ComboBoxElement getByLabel(Locator locator, String label) {
         return new ComboBoxElement(
-                locator.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions().setHas(locator.getByLabel(label)))
-                        .first());
+                AccessibleNameLocator.find(locator, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
     }
 
-    //Caution: This uses inexact matching and selects the first.
+    /**
+     * Locator for a dropdown item, matched on its full label. {@code "Option 1"}
+     * does not resolve to {@code "Option 10"}, and two visible items sharing the
+     * label fail with a Playwright strict-mode error.
+     */
     private Locator getOverlayItem(String label) {
-        return getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-                .filter(new Locator.FilterOptions()
-                        .setHasText(label)).first();
-    }
-
-    //Force an exact match. Wait in case it requires a lazy evaluation
-  	@Deprecated //not working
-    private Locator getOverlayItemExactWait(Pattern exactMatch) {
-      Locator loc = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-          .filter(new Locator.FilterOptions()
-                  .setHasText(exactMatch));
-      assertThat(loc).hasCount(1, new HasCountOptions().setTimeout(5000)); //waits for lazy download to settle. doesn't work. stays at count=0
-      return loc.first();
-  }
-
-    //because you can't just expect it to be easy and for the regex to work
-    //Note that the all() method does not wait, so you must have filtered before getting here.
-    //I think the regex is fine, but you have to check in a loop until the lazy eval is completed.
-    //The assert-locator-hasCount does not work and I don't know why. You can inspect the DOM and see that it should work, but it returns zero.
-    private Locator getOverlayItemPainful(String label, Pattern exactMatch) {
-
-      //getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-      //    .filter(new Locator.FilterOptions()
-      //            .setHasText(exactMatch)).count();
-
-       Locator locAll = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])")
-                .filter(new Locator.FilterOptions()
-                        .setHasText(label));
-
-       //junk loop
-       int iter = 0;
-        while (iter++ < 100) {
-        	int count = locAll.count();
-        	if (count == 1) {
-
-        	  //debug check. this fails. Either a bug with my regex or a bug in PW. And the regex is correct both in java and elsewhere
-        		//Example: Searching for the text "foo". The regex is ^\s*\Qfoo\E\s*$
-        		//getOverlayItemExactWait(exactMatch);
-
-        		return locAll.first();
-
-        	} else if (count == 0) {
-        		try {
-        			Thread.sleep(100);
-        		} catch (InterruptedException e) {
-        			e.printStackTrace();
-        		}
-
-        	} else {
-        		Predicate<String> pred = exactMatch.asMatchPredicate();
-        		for (Locator loc : locAll.all()) {
-        			if (pred.test(loc.textContent())) {
-//            		getOverlayItemExactWait(exactMatch); //fails here as well
-        				return loc;
-        			}
-        		}
-        		assert(false);
-        	}
-        	}
-        return null;
-    }
-
-    //The widget may only download a subset of values. If this needs to be tested, setPageSize(veryLarge)
-    //It also needs to be opened once to download the values.
-    //Nope: Even after all that, it displays a scrollable list rather than a non-scrollable list,
-    //but it still only shows a subset in the DOM (about 26)
-    //Note that this ignore the filter value. If you want the filtered list, call getVisibleValues()
-    @Deprecated //cannot be relied on
-    public List<String> getAllowableValues() {
-	    	boolean currentlyClosed = !isOpened();
-	    	if (currentlyClosed) {
-	    		open();
-	    	}
-	    	List<String> answer = getLocator().locator(FIELD_ITEM_TAG_NAME).all()
-	    			.stream()
-	    			.map(Locator::textContent)
-	    			.toList();
-	    	if (currentlyClosed) {
-	    		close();
-	    	}
-	    	return answer;
-    }
-
-    /**
-     * Not visible as in "currently isOpened", but the list of items that will show when opened.
-     * This is reliable after setting a filter, but (could be) incomplete is the list is large
-     * and has not been fully downloaded.
-     */
-    public List<String> getVisibleValues() {
-	    	boolean currentlyClosed = !isOpened();
-	    	if (currentlyClosed) {
-	    		open();
-	    	}
-	    	List<String> answer = getLocator().locator(FIELD_ITEM_TAG_NAME + ":not([hidden])").all()
-	    			.stream()
-	    			.map(Locator::textContent)
-	    			.toList();
-	    	if (currentlyClosed) {
-	    		close();
-	    	}
-	    	return answer;
-	  }
-
-    /**
-     * Does the list contain this item?
-     * Need to open and filter to ensure it gets downloaded from a large lazy list
-     *
-     * @param item label of the item to select
-     */
-    public boolean containsItem(String item) {
-        setFilter(item);
-        return getAllowableValues().contains(item);
+        return ItemLocator.byExactText(getLocator(),
+                FIELD_ITEM_TAG_NAME + ":not([hidden])", label);
     }
 
     private void ensureOpenedOnce() {

@@ -49,6 +49,16 @@ mvn -Pit verify
 
 ## Available Element Classes
 
+> **Never decompile the DramaFinder jar to discover its API.**
+> The complete, always-current public API (every element, its methods,
+> signatures and one-line descriptions) is in
+> `skills/vaadin-playwright-test/api-reference.md`, auto-generated from source.
+> Read that file — in a consumer project, fetch it from
+> `https://raw.githubusercontent.com/parttio/dramafinder/master/skills/vaadin-playwright-test/api-reference.md`,
+> or, with no network, read the copy bundled in the jar:
+> `unzip -p ~/.m2/repository/org/vaadin/addons/dramafinder/*/dramafinder-*.jar META-INF/dramafinder/api-reference.md`.
+> The table below is a component→class overview only.
+
 Each element class wraps a Playwright `Locator` and provides typed helpers (getters, actions, assertions) for a specific Vaadin component. They all extend `VaadinElement` and are annotated with `@PlaywrightElement`.
 
 | Element | Vaadin Component | Tag |
@@ -57,8 +67,11 @@ Each element class wraps a Playwright `Locator` and provides typed helpers (gett
 | `AccordionPanelElement` | AccordionPanel | `vaadin-accordion-panel` |
 | `BigDecimalFieldElement` | BigDecimalField | `vaadin-big-decimal-field` |
 | `ButtonElement` | Button | `vaadin-button` |
+| `BreadcrumbsElement` | Breadcrumbs | `vaadin-breadcrumbs` |
+| `BreadcrumbsItemElement` | BreadcrumbsItem | `vaadin-breadcrumbs-item` |
 | `CardElement` | Card | `vaadin-card` |
 | `CheckboxElement` | Checkbox | `vaadin-checkbox` |
+| `CheckboxGroupElement` | CheckboxGroup | `vaadin-checkbox-group` |
 | `ContextMenuElement` | ContextMenu | `vaadin-context-menu` |
 | `DatePickerElement` | DatePicker | `vaadin-date-picker` |
 | `DateTimePickerElement` | DateTimePicker | `vaadin-date-time-picker` |
@@ -67,6 +80,8 @@ Each element class wraps a Playwright `Locator` and provides typed helpers (gett
 | `EmailFieldElement` | EmailField | `vaadin-email-field` |
 | `IntegerFieldElement` | IntegerField | `vaadin-integer-field` |
 | `ListBoxElement` | ListBox | `vaadin-list-box` |
+| `LoginFormElement` | LoginForm | `vaadin-login-form` |
+| `LoginOverlayElement` | LoginOverlay | `vaadin-login-overlay` |
 | `MenuBarElement` | MenuBar | `vaadin-menu-bar` |
 | `NotificationElement` | Notification | `vaadin-notification-card` |
 | `NumberFieldElement` | NumberField | `vaadin-number-field` |
@@ -76,6 +91,8 @@ Each element class wraps a Playwright `Locator` and provides typed helpers (gett
 | `RadioButtonGroupElement` | RadioButtonGroup | `vaadin-radio-group` |
 | `SelectElement` | Select | `vaadin-select` |
 | `SideNavigationElement` | SideNav | `vaadin-side-nav` |
+| `SwitchElement` | Switch (experimental) | `vaadin-switch` |
+| `TabsElement` | Tabs | `vaadin-tabs` |
 | `TabSheetElement` | TabSheet | `vaadin-tabsheet` |
 | `TextAreaElement` | TextArea | `vaadin-text-area` |
 | `TextFieldElement` | TextField | `vaadin-text-field` |
@@ -145,6 +162,7 @@ Element classes implement shared interfaces for cross-cutting concerns:
 |-----------|----------|
 | `FocusableElement` | `focus()`, `blur()`, `getTabIndex()`, `assertIsFocused()` |
 | `HasAriaLabelElement` | `getAriaLabel()`, `assertAriaLabel()` |
+| `HasCheckedElement` | `isChecked()`, `check()`, `uncheck()`, `setChecked()`, `assertChecked()`, `assertNotChecked()` |
 | `HasClearButtonElement` | `assertClearButton()` |
 | `HasEnabledElement` | `isEnabled()`, `assertEnabled()`, `assertDisabled()` |
 | `HasHelperElement` | `getHelper()`, `assertHelper()` |

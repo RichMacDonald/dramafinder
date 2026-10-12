@@ -160,7 +160,7 @@ public class MultiSelectComboBoxViewIT extends SpringPlaywrightIT {
     @Test
     public void testFilterAndSelect() {
         MultiSelectComboBoxElement comboBox = MultiSelectComboBoxElement.getByLabel(page, "Filterable MultiSelect");
-        comboBox.filterAndToggleItem("Apr", "Apricot");
+        comboBox.filterAndSelectItem("Apr", "Apricot");
         comboBox.close();
         comboBox.assertSelectedCount(1);
     }
@@ -207,7 +207,7 @@ public class MultiSelectComboBoxViewIT extends SpringPlaywrightIT {
     @Test
     public void testLazyFilterAndSelect() {
         MultiSelectComboBoxElement comboBox = MultiSelectComboBoxElement.getByLabel(page, "Lazy MultiSelect");
-        comboBox.filterAndToggleItem("Item 250", "Item 250");
+        comboBox.filterAndSelectItem("Item 250", "Item 250");
         comboBox.close();
         comboBox.assertSelectedCount(1);
         assertThat(page.locator("#lazy-selected-value")).hasText("Item 250");
@@ -227,6 +227,16 @@ public class MultiSelectComboBoxViewIT extends SpringPlaywrightIT {
         // "Item 49" matches: Item 49, Item 490..Item 499 = 11 items
         comboBox.setFilter("Item 49");
         comboBox.assertItemCount(11);
+        comboBox.close();
+    }
+
+    @Test
+    public void testSetFilterReplacesPreviousFilter() {
+        MultiSelectComboBoxElement comboBox = MultiSelectComboBoxElement.getByLabel(page, "Filterable MultiSelect");
+        comboBox.setFilter("Apr");
+        comboBox.assertItemCount(1); // Apricot
+        comboBox.setFilter("Ch");
+        comboBox.assertItemCount(1); // Cherry (would be 0 if "AprCh" was appended)
         comboBox.close();
     }
 
@@ -266,6 +276,40 @@ public class MultiSelectComboBoxViewIT extends SpringPlaywrightIT {
         ButtonElement button = comboBox.getOverlayItemComponent("Banana", ButtonElement.class);
         button.click();
         assertThat(page.locator("#custom-renderer-output")).hasText("Clicked: Banana");
+    }
+
+    @Test
+    public void testOverlayItemQueriesAreScopedToCombobox() {
+        MultiSelectComboBoxElement fruits = MultiSelectComboBoxElement.getByLabel(page, "Fruits");
+        MultiSelectComboBoxElement filterable = MultiSelectComboBoxElement.getByLabel(page, "Filterable MultiSelect");
+
+        fruits.open();
+        filterable.open();
+
+        assertEquals(5, fruits.getOverlayItemCount());
+        assertEquals(9, filterable.getOverlayItemCount());
+
+        fruits.assertItemCount(5);
+        filterable.assertItemCount(9);
+
+        fruits.close();
+        filterable.close();
+
+        filterable.selectItem("Apple");
+        filterable.assertSelectedItems("Apple");
+        fruits.assertSelectedCount(0);
+    }
+
+    @Test
+    public void testGetOverlayItemComponentByIndexIsScopedToCombobox() {
+        MultiSelectComboBoxElement filterable = MultiSelectComboBoxElement.getByLabel(page, "Filterable MultiSelect");
+        MultiSelectComboBoxElement custom = MultiSelectComboBoxElement.getByLabel(page, "Custom renderer");
+
+        filterable.open();
+        custom.open();
+
+        ButtonElement button = custom.getOverlayItemComponent(0, ButtonElement.class);
+        assertThat(button.getLocator()).hasText("Info Apple");
     }
 
     @Test

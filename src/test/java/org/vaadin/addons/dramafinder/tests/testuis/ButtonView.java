@@ -17,8 +17,10 @@ public class ButtonView extends Main {
 
     public ButtonView() {
         createBasicButtons();
+        createCombinedVariantsButton();
         createDisabledButton();
         createToggleButton();
+        createVisibilityToggleButton();
         createClickableButton();
         createIconButton();
         createTooltipButton();
@@ -32,6 +34,12 @@ public class ButtonView extends Main {
         addExample("Enabled Button", button);
     }
 
+    private void createCombinedVariantsButton() {
+        Button button = new Button("Combined Variants Button");
+        button.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
+        addExample("Combined Variants Button", button);
+    }
+
     private void createDisabledButton() {
         Button button = new Button("Disabled Button");
         button.setEnabled(false);
@@ -42,6 +50,14 @@ public class ButtonView extends Main {
         Button button = new Button("Toggle Button");
         button.addClickListener(e -> button.setEnabled(!button.isEnabled()));
         addExample("Toggle Button", button);
+    }
+
+    private void createVisibilityToggleButton() {
+        Button target = new Button("Visibility Target Button");
+        Button toggle = new Button("Toggle Visibility Button");
+        toggle.addClickListener(e -> target.setVisible(!target.isVisible()));
+        addExample("Visibility Target Button", target);
+        addExample("Toggle Visibility Button", toggle);
     }
 
     private void createClickableButton() {

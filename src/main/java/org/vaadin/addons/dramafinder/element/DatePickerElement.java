@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
 import org.vaadin.addons.dramafinder.element.shared.HasClearButtonElement;
@@ -87,13 +88,11 @@ public class DatePickerElement extends VaadinElement implements HasInputFieldEle
      */
     @Override
     public void setValue(String value) {
-        HasInputFieldElement.super.setValue(value);
-        //not good enough. Needs to close the popup. Typing "Enter" closes the popup, but does not validate
-        getInputLocator().press("Enter");
-//        getLocator().page().locator("css=body").click(); //validates (see it selecting another element as well; not good)
-        
-        //getInputLocator().press("Tab"); //selects something else, but the body click is not working
-        getInputLocator().blur();
+      getInputLocator().fill(value); //will show popup
+        getLocator().blur();
+        getLocator().dispatchEvent("change");
+        getLocator().press("Enter"); //closes popup
+        waitForVaadinIdle();
     }
 
 
@@ -130,11 +129,7 @@ public class DatePickerElement extends VaadinElement implements HasInputFieldEle
      */
     public static DatePickerElement getByLabel(Page page, String label) {
         return new DatePickerElement(
-                page.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions()
-                                .setHas(page.getByRole(AriaRole.COMBOBOX,
-                                        new Page.GetByRoleOptions().setName(label)))
-                        ).first());
+                AccessibleNameLocator.find(page, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
     }
 
     /**
@@ -146,8 +141,6 @@ public class DatePickerElement extends VaadinElement implements HasInputFieldEle
      */
     public static DatePickerElement getByLabel(Locator locator, String label) {
         return new DatePickerElement(
-                locator.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions().setHas(locator.getByLabel(label)))
-                        .first());
+                AccessibleNameLocator.find(locator, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
     }
 }

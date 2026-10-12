@@ -1,5 +1,9 @@
 # GridElement Specification
 
+> For the authoritative method list and signatures, see the auto-generated
+> [api-reference.md](../../skills/vaadin-playwright-test/api-reference.md). This
+> file focuses on behaviour and usage that signatures alone don't convey.
+
 ## Overview
 
 `GridElement` is a Playwright element wrapper for the `<vaadin-grid>` web component. It provides helpers for querying rows and cells, accessing cell content by row/column index or header text, and interacting with the grid's selection, sorting, and row details features. Row and cell access methods **auto-scroll** the grid as needed to bring virtualized rows into view. 
@@ -93,6 +97,18 @@ All `findHeaderCell*` methods return `Optional<HeaderCellElement>`.
 | `findHeaderCellByText(int headerRowIndex, String text)` | Header cell by header row index and text content |
 | `getHeaderCellContents()` | Text content of all visible header cells |
 
+### Footer Access Methods
+
+All `findFooterCell*` methods return `Optional<FooterCellElement>`.
+
+| Method | Description |
+|--------|-------------|
+| `findFooterCell(int colIndex)` | Footer cell by column index in the first footer row |
+| `findFooterCell(int footerRowIndex, int colIndex)` | Footer cell by footer row index and column index |
+| `findFooterCellByText(String text)` | Footer cell by text content in the first footer row |
+| `findFooterCellByText(int footerRowIndex, String text)` | Footer cell by footer row index and text content |
+| `getFooterCellContents()` | Text content of all visible footer cells |
+
 ### Row Access Methods
 
 | Method | Return Type | Description |
@@ -155,6 +171,10 @@ Extends `CellElement` with sorting support.
 | `isSortAscending()` | Whether the column is sorted ascending |
 | `isSortDescending()` | Whether the column is sorted descending |
 | `isNotSorted()` | Whether the column is not sorted |
+
+### FooterCellElement extends CellElement
+
+Wraps a single grid footer cell (`<td>` in `<tfoot>`). Adds no methods beyond `CellElement`; exists as a distinct type returned by the footer access methods.
 
 ### RowElement
 

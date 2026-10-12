@@ -1,5 +1,9 @@
 # VaadinElement Specification
 
+> For the authoritative method list and signatures, see the auto-generated
+> [api-reference.md](../../skills/vaadin-playwright-test/api-reference.md). This
+> file focuses on behaviour and usage that signatures alone don't convey.
+
 ## Overview
 
 `VaadinElement` is the abstract base class for all typed Playwright wrappers around Vaadin components. It exposes common helpers such as clicking, visibility assertions, text retrieval and generic DOM property access. Concrete components add component-specific APIs on top of this.
@@ -12,9 +16,12 @@ VaadinElement (abstract)
     ├── AccordionElement
     ├── AccordionPanelElement
     ├── BigDecimalFieldElement
+    ├── BreadcrumbsElement
+    ├── BreadcrumbsItemElement
     ├── ButtonElement
     ├── CardElement
     ├── CheckboxElement
+    ├── CheckboxGroupElement
     ├── ComboBoxElement
     ├── ContextMenuElement
     ├── DatePickerElement
@@ -33,7 +40,9 @@ VaadinElement (abstract)
     ├── SelectElement
     ├── SideNavigationElement
     ├── SideNavigationItemElement
+    ├── SwitchElement
     ├── TabElement
+    ├── TabsElement
     ├── TabSheetElement
     ├── TextFieldElement
     ├── TimePickerElement
@@ -164,4 +173,8 @@ public class MyElement extends VaadinElement {
 - `HasValidationPropertiesElement` - Validation support
 - `FocusableElement` - Focus operations
 - `HasEnabledElement` - Enabled/disabled state
+- `HasDisabledAttributeElement` - Enabled/disabled state read from the host's
+  `disabled` attribute, for hosts whose ARIA role Playwright does not treat as
+  disableable
+- `HasCheckedElement` - Boolean checked state of checkbox-like inputs
 - `HasThemeElement` - Theme variants

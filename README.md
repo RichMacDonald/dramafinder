@@ -1,5 +1,47 @@
 # Drama Finder
 
+## Documentation
+
+The documentation can be found in this repository and also deployed on https://parttio-dramafinder.mintlify.app/ if you find some errors please file an issue.
+
+### API reference (and offline agents)
+
+The complete public API — test setup, every element wrapper, every signature —
+is generated from source into
+[skills/vaadin-playwright-test/api-reference.md](skills/vaadin-playwright-test/api-reference.md).
+
+The same file ships **inside the jar**, so it is readable with no network and no
+checkout. That is the copy to reach for in a consumer project, and the reason
+there is never a need to run `javap` on the classes:
+
+```
+JAR=$(ls ~/.m2/repository/org/vaadin/addons/dramafinder/*/dramafinder-*.jar | tail -1)
+unzip -p "$JAR" META-INF/dramafinder/START-HERE.md          # short guide, ~4 KB
+unzip -p "$JAR" META-INF/dramafinder/api-reference.md       # every signature
+unzip -p "$JAR" META-INF/dramafinder/agent-api-reference.md # screenshot helpers
+```
+
+## Claude Code skills
+
+This repository ships two Claude Code skills. Install them as plugins:
+
+```
+/plugin marketplace add parttio/dramafinder
+/plugin install vaadin-playwright-test@dramafinder
+/plugin install vaadin-playwright-screenshot@dramafinder
+```
+
+- **vaadin-playwright-test** — generates Playwright integration tests for
+  Vaadin views using Drama Finder.
+- **vaadin-playwright-screenshot** — captures screenshots of UI changes by
+  writing a temporary Drama Finder test that batch-captures every key visual
+  state against the running app in one run. Backed by the
+  `org.vaadin.addons.dramafinder.agent` helpers (`VisualVerificationTest`,
+  `AgentReporting`, `ComponentSnapshot`), which write a screenshot, semantic
+  component snapshot, and stack trace to `target/agent-report/` on failure.
+
+To get later updates, run `/plugin marketplace update dramafinder`.
+
 ## Usage
 
 Drama Finder is a set of helper classes to test a Vaadin application using
@@ -40,15 +82,117 @@ public void testHelper() {
 
 ```
 
+## Getting started
+
+Add the addon as a test dependency.
+
+```xml
+
+<dependency>
+    <groupId>org.vaadin.addons</groupId>
+    <artifactId>dramafinder</artifactId>
+    <version>1.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+The Drama Finder element classes are built around a plain Playwright `Page`
+(or `Locator`). They have no dependency on any particular test base class, so
+you can use them with whatever Playwright setup you already have. Just hand a
+`Page` to the factory helpers (e.g. `getByLabel`) or to an element constructor.
+
+The simplest way to get started is to let Spring Boot start the server for you
+with `@SpringBootTest(webEnvironment = RANDOM_PORT)` and manage the Playwright
+`Page` yourself:
+
+```java
+
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+public class SimpleExampleViewIT {
+
+    @LocalServerPort
+    private int port;
+
+    Playwright playwright;
+    Browser browser;
+    Page page;
+
+    @BeforeEach
+    public void setup() {
+        playwright = Playwright.create();
+        browser = playwright.chromium().launch();
+        page = browser.newPage();
+        page.navigate(String.format("http://localhost:%d/", port));
+    }
+
+    @AfterEach
+    public void tearDown() {
+        browser.close();
+        playwright.close();
+    }
+
+    @Test
+    public void testTooltip() {
+        // The only thing the element API needs is a Playwright Page
+        TextFieldElement textfield = TextFieldElement.getByLabel(page, "Textfield");
+        textfield.assertVisible();
+        textfield.assertTooltipHasText("Tooltip for textfield");
+    }
+}
+```
+
+Letting `@SpringBootTest` start the server is not the only option. You can also
+write the tests as plain integration tests (e.g. classes ending in `IT.java`
+run by the `maven-failsafe-plugin`) and start/stop the server separately with
+Maven — for example using the `spring-boot:start` and `spring-boot:stop` goals
+bound to the `pre-integration-test` / `post-integration-test` phases — before
+the ITs execute. In that case the test simply navigates to the externally
+started server's URL. Either way, the element API only ever needs a Playwright
+`Page`, so you are free to obtain it however suits your project.
+
+### Optional: `AbstractBasePlaywrightIT` convenience base class
+
+If you don't already have a Playwright setup, Drama Finder ships an optional
+`AbstractBasePlaywrightIT` base class that handles the boilerplate for you:
+creating and closing the `Playwright`/`Browser`, opening a fresh `page` and
+navigating to your view before each test, waiting for Vaadin to finish loading,
+sensible default timeouts, and headless toggling (via the `headless` system
+property or `HEADLESS` environment variable). Extending it is purely a
+convenience — it is never required to use the element API.
+
+```java
+
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+public class SimpleExampleViewIT extends AbstractBasePlaywrightIT {
+
+    @LocalServerPort
+    private int port;
+
+    @Override
+    public String getUrl() {
+        return String.format("http://localhost:%d/", port);
+    }
+
+    @Test
+    public void testTooltip() {
+        TextFieldElement textfield = TextFieldElement.getByLabel(page, "Textfield");
+        textfield.assertVisible();
+        textfield.assertTooltipHasText("Tooltip for textfield");
+    }
+}
+```
+
 ## Note
 
-The API is in early stage of development.
+Drama Finder covers most of the Vaadin components (see [TODO.md](TODO.md) for
+the list of supported components and the remaining gaps) and follows semantic
+versioning since 1.0. It is built and tested against Vaadin 25.
 
 If you notice something missing please create a ticket or a Pull Request.
 
-The tests in the demo application is not meant to be a best practice since it's
-primarly here to test the API.
-For example it will test the getter like `getMinLength` without waiting which is
+The integration tests in this repository are not meant to be a best practice
+since they are primarily here to test the API.
+For example they test getters like `getMinLength` without waiting, which is
 a bad practice.
 
 ```java
@@ -64,18 +208,13 @@ public void testPattern() {
 
 ## Development instructions
 
-Starting the test/demo server:
-
-```bash
-mvn spring-boot:run
-```
-
-This deploys demo at http://localhost:8080
-The demo is only here to run the test
+There is no standalone demo application. The views used to exercise the
+library are test-only (`src/test/java/.../tests/testuis/`) and are served by the
+Spring Boot test harness (`@SpringBootTest`) when the `*IT.java` tests run.
 
 ### Javadoc
 
-Public APIs in the `dramafinder` module are documented with concise Javadoc:
+Public APIs in the `dramafinder` library are documented with concise Javadoc:
 
 - Element classes include a short summary referencing the underlying Vaadin
   tag (e.g., `vaadin-text-field`) and any noteworthy behaviors.
@@ -94,8 +233,7 @@ mvn test
 ## Integration tests
 
 The integration tests are built using Spring Boot, Playwright, and Axe-core.
-The tests are located in files ending with `IT.java` in the
-`sortable-layout-demo` module.
+The tests are located in files ending with `IT.java` under `src/test/java`.
 The tests are run with the `maven-failsafe-plugin` when the `it` profile is
 activated.
 
@@ -127,44 +265,6 @@ You will need to add the profile in your pom.xml:
     </properties>
 </profile>
 
-```
-
-## How to use it
-
-Add the addon as a test dependency.
-
-```xml
-
-<dependency>
-    <groupId>org.vaadin.addons</groupId>
-    <artifactId>dramafinder</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <scope>test</scope>
-</dependency>
-```
-
-With Spring Boot you can create a simple test:
-
-```java
-
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-public class SimpleExampleViewIT extends AbstractBasePlaywrightIT {
-
-    @LocalServerPort
-    private int port;
-
-    @Override
-    public String getUrl() {
-        return String.format("http://localhost:%d/", port);
-    }
-
-    @Test
-    public void testTooltip() {
-        TextFieldElement textfield = TextFieldElement.getByLabel(page, "Textfield");
-        textfield.assertVisible();
-        textfield.assertTooltipHasText("Tooltip for textfield");
-    }
-}
 ```
 
 ## Cutting a release

@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
 import org.vaadin.addons.dramafinder.element.shared.HasClearButtonElement;
@@ -63,6 +64,7 @@ public class DateTimePickerElement extends VaadinElement implements HasInputFiel
         datePickerElement.setValue(date.toLocalDate());
         timePickerElement.setValue(date.toLocalTime());
         getLocator().dispatchEvent("change");
+        waitForVaadinIdle();
     }
 
     /**
@@ -155,11 +157,7 @@ public class DateTimePickerElement extends VaadinElement implements HasInputFiel
      */
     public static DateTimePickerElement getByLabel(Page page, String label) {
         return new DateTimePickerElement(
-                page.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions()
-                                .setHas(page.getByRole(AriaRole.COMBOBOX,
-                                        new Page.GetByRoleOptions().setName(label)))
-                        ).first());
+                AccessibleNameLocator.find(page, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
     }
 
     /**
@@ -171,9 +169,7 @@ public class DateTimePickerElement extends VaadinElement implements HasInputFiel
      */
     public static DateTimePickerElement getByLabel(Locator locator, String label) {
         return new DateTimePickerElement(
-                locator.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions().setHas(locator.getByLabel(label)))
-                        .first());
+                AccessibleNameLocator.find(locator, FIELD_TAG_NAME, AriaRole.COMBOBOX, label));
     }
 
     /**
@@ -181,8 +177,9 @@ public class DateTimePickerElement extends VaadinElement implements HasInputFiel
      */
     public void setDate(String date) {
         datePickerElement.setValue(date);
-        getLocator().page().keyboard().press("Enter");
+        getLocator().press("Enter");
         getLocator().dispatchEvent("change");
+        waitForVaadinIdle();
     }
 
     /**
@@ -190,8 +187,9 @@ public class DateTimePickerElement extends VaadinElement implements HasInputFiel
      */
     public void setTime(String date) {
         timePickerElement.setValue(date);
-        getLocator().page().keyboard().press("Enter");
+        getLocator().press("Enter");
         getLocator().dispatchEvent("change");
+        waitForVaadinIdle();
     }
 
     /**

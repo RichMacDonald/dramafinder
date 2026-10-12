@@ -5,12 +5,13 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
+import org.vaadin.addons.dramafinder.element.shared.HasCheckedElement;
 import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
 import org.vaadin.addons.dramafinder.element.shared.HasHelperElement;
 import org.vaadin.addons.dramafinder.element.shared.HasLabelElement;
 import org.vaadin.addons.dramafinder.element.shared.HasStyleElement;
 import org.vaadin.addons.dramafinder.element.shared.HasValidationPropertiesElement;
-import org.vaadin.addons.dramafinder.element.shared.HasValueElement;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -19,11 +20,12 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
  * <p>
  * Provides helpers to read and modify checked/indeterminate state and
  * access common mixins for label, helper, validation and enablement.
+ * The checked-state API comes from {@link HasCheckedElement}.
  */
 @PlaywrightElement(CheckboxElement.FIELD_TAG_NAME)
 public class CheckboxElement extends VaadinElement
-        implements FocusableElement, HasAriaLabelElement, HasEnabledElement,
-        HasHelperElement, HasValueElement, HasStyleElement, HasLabelElement, HasValidationPropertiesElement {
+        implements FocusableElement, HasAriaLabelElement, HasCheckedElement, HasEnabledElement,
+        HasHelperElement, HasStyleElement, HasLabelElement, HasValidationPropertiesElement {
 
     public static final String FIELD_TAG_NAME = "vaadin-checkbox";
 
@@ -36,29 +38,6 @@ public class CheckboxElement extends VaadinElement
         super(locator);
     }
 
-    @Override
-    public Locator getEnabledLocator() {
-        return getInputLocator();
-    }
-
-    @Override
-    public Locator getAriaLabelLocator() {
-        return getInputLocator();
-    }
-
-    @Override
-    public Locator getFocusLocator() {
-        return getInputLocator();
-    }
-
-    /**
-     * Whether the checkbox is currently checked.
-     *
-     * @return {@code true} if checked
-     */
-    public boolean isChecked() {
-        return getInputLocator().isChecked();
-    }
 
     /**
      * Whether the checkbox is currently checked, with an argument.
@@ -143,6 +122,9 @@ public class CheckboxElement extends VaadinElement
 
     /**
      * Get a {@code CheckboxElement} by its accessible label.
+     * <p>
+     * Page-level lookup: the label is matched case-insensitively as a substring
+     * and the first match wins.
      *
      * @param page  the Playwright page
      * @param label the accessible label of the checkbox
@@ -155,5 +137,22 @@ public class CheckboxElement extends VaadinElement
                                 .setHas(page.getByRole(AriaRole.CHECKBOX,
                                         new Page.GetByRoleOptions().setName(label)))
                         ).first());
+    }
+
+    /**
+     * Get a {@code CheckboxElement} by its accessible label within a given scope.
+     * <p>
+     * Item-within-container lookup: the label must match the checkbox's full
+     * accessible name, so {@code "Option 1"} no longer resolves to
+     * {@code "Option 10"}. Two checkboxes sharing the label inside the scope fail
+     * with a Playwright strict-mode error.
+     *
+     * @param locator the locator to search within (e.g. a checkbox group)
+     * @param label   the full accessible label of the checkbox
+     * @return the matching {@code CheckboxElement}
+     */
+    public static CheckboxElement getByLabel(Locator locator, String label) {
+        return new CheckboxElement(
+                AccessibleNameLocator.findExact(locator, FIELD_TAG_NAME, AriaRole.CHECKBOX, label));
     }
 }

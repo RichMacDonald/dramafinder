@@ -1,7 +1,8 @@
 package org.vaadin.addons.dramafinder.element;
 
 import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.Page;
+import org.vaadin.addons.dramafinder.element.shared.HasDisabledAttributeElement;
+import org.vaadin.addons.dramafinder.element.utils.ItemLocator;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -11,7 +12,7 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
  * Offers utilities to toggle open state, read summary and access content.
  */
 @PlaywrightElement(AccordionPanelElement.FIELD_TAG_NAME)
-public class AccordionPanelElement extends VaadinElement {
+public class AccordionPanelElement extends VaadinElement implements HasDisabledAttributeElement {
 
     public static final String FIELD_TAG_NAME = "vaadin-accordion-panel";
     public static final String FIELD_HEADING_TAG_NAME = "vaadin-accordion-heading";
@@ -70,12 +71,19 @@ public class AccordionPanelElement extends VaadinElement {
         assertThat(getContentLocator()).not().isVisible();
     }
 
-    /** Get an accordion panel by its summary text within a scope. */
+    /**
+     * Get an accordion panel by its full summary text within a scope.
+     * <p>
+     * The summary must match the heading's whole text, so {@code "Section 1"}
+     * does not resolve to {@code "Section 10"}. Two panels sharing the summary
+     * fail with a Playwright strict-mode error.
+     */
     public static AccordionPanelElement getAccordionPanelBySummary(Locator locator, String summary) {
         return new AccordionPanelElement(locator.locator(FIELD_TAG_NAME).filter(
                 new Locator.FilterOptions().setHas(
-                        locator.page().locator(FIELD_HEADING_TAG_NAME,
-                                new Page.LocatorOptions().setHasText(summary))
+                        locator.page().locator(FIELD_HEADING_TAG_NAME).filter(
+                                new Locator.FilterOptions()
+                                        .setHas(ItemLocator.exactText(locator.page(), summary)))
                 )));
     }
 
@@ -85,16 +93,6 @@ public class AccordionPanelElement extends VaadinElement {
                 new Locator.FilterOptions().setHas(
                         locator.page().locator(FIELD_HEADING_TAG_NAME + "[opened]")
                 )));
-    }
-
-    /** Assert that the panel is enabled. */
-    public void assertEnabled() {
-        assertThat(getLocator()).not().hasAttribute("disabled", "");
-    }
-
-    /** Assert that the panel is disabled. */
-    public void assertDisabled() {
-        assertThat(getLocator()).hasAttribute("disabled", "");
     }
 
 }

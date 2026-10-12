@@ -1,0 +1,93 @@
+# BadgeElement
+
+> Full API (methods, signatures, descriptions): see [api-reference.md](../../skills/vaadin-playwright-test/api-reference.md). This note covers only behaviour that isn't obvious from the signatures.
+
+## It targets the real `vaadin-badge`, not a `Span` with `theme="badge"`
+
+`BadgeElement` wraps the `vaadin-badge` component (server class
+`com.vaadin.flow.component.badge.Badge`, in the catalogue since Vaadin 25.1).
+The older idiom of styling a `Span` with `theme="badge"` produces a `<span>`,
+not a `<vaadin-badge>`, so it is **not** matched by any `BadgeElement` factory.
+Locate those with a plain Playwright locator instead:
+
+```java
+// vaadin-badge component
+BadgeElement badge = BadgeElement.getByText(page, "Completed");
+
+// legacy Span theme="badge" — not a BadgeElement
+assertThat(page.locator("span[theme~='badge']")).hasText("Completed");
+```
+
+## Text, number and icon are three separate pieces of content
+
+A badge can carry all three at once:
+
+| Content  | Where it lives                     | Read with                        |
+|----------|------------------------------------|----------------------------------|
+| text     | default slot (light DOM)           | `getText()` / `assertText(...)`  |
+| number   | `number` property, rendered in the component's shadow DOM | `getNumber()` / `assertNumber(...)` |
+| icon     | `icon` slot (light DOM)            | `getIconLocator()`, `assertHasIcon()` |
+
+`getText()` and `assertText(...)` read only the child nodes that carry no
+`slot` attribute — the badge's own content. Neither the number (shadow DOM) nor
+an icon's light-DOM text is included:
+
+```java
+// new Badge("unread messages", 5) with BadgeVariant.NUMBER_ONLY
+badge.assertText("unread messages");
+badge.assertNumber(5);
+
+// new Badge("Verified", new Span("✓")) — the host's textContent is "Verified✓"
+badge.assertText("Verified");
+```
+
+Note that a raw Playwright text assertion on the host element behaves
+differently: `assertThat(badge.getLocator()).hasText("unread messages")` fails,
+because Playwright's text assertions traverse the shadow DOM and therefore also
+pick up the rendered number. Use `assertText(...)` — it compares the badge's own
+text content exactly, without whitespace normalization.
+
+## `getByText(...)` *does* match the number
+
+The factories are the exception to the rule above. They filter with Playwright's
+`hasText`, which uses the same shadow-traversing text as `hasText` assertions, so
+the rendered number is part of the matched text:
+
+```java
+// new Badge("unread messages", 5), plus a separate badge reading "5 minutes"
+BadgeElement.getByText(page, "5");        // the *numbered* badge, not "5 minutes"
+BadgeElement.getByText(page, "unread");   // unambiguous
+```
+
+Pass some of the badge's own text to avoid matching a number by accident.
+
+## Theme variants combine into one attribute
+
+`Badge.addThemeVariants(...)` appends to a single space-separated `theme`
+attribute, so `assertTheme(...)` has to list every applied variant — though
+their order does not matter, it compares them as an unordered set. Use
+`assertHasThemeVariant(...)` to assert one variant regardless of the others.
+Both live on `HasThemeElement`, so they are available on every themed element,
+not only the badge:
+
+```java
+// badge.addThemeVariants(BadgeVariant.SUCCESS, BadgeVariant.SMALL)
+badge.assertTheme("success small");        // whole attribute, any order
+badge.assertHasThemeVariant("success");    // one variant among several
+badge.assertHasNoThemeVariant("error");
+```
+
+The variants the component supports are `success`, `error`, `contrast`,
+`warning`, `small`, `filled`, `dot`, `icon-only` and `number-only`.
+
+## The `dot`, `icon-only` and `number-only` variants only hide content visually
+
+Those variants render the hidden content as screen-reader-only rather than
+removing it, so the badge stays visible and the text/number assertions keep
+working:
+
+```java
+// new Badge() with BadgeVariant.DOT
+badge.assertVisible();
+badge.assertText(null);   // a dot badge genuinely has no text
+```

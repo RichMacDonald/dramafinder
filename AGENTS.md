@@ -2,23 +2,28 @@
 
 ## Project Structure & Module Organization
 
-- Root `pom.xml` — Core Playwright helpers for Vaadin (`src/main/java/...`),
-  resources under `src/main/resources`.
+- Single-module Maven project. Root `pom.xml` builds the library — core
+  Playwright helpers for Vaadin live in
+  `src/main/java/org/vaadin/addons/dramafinder/`.
+- The demo views used to exercise the library are test-only, under
+  `src/test/java/.../tests/testuis/`; there is no standalone runnable demo app.
+  Views are served by the Spring Boot IT harness (`@SpringBootTest`) when the
+  `*IT.java` tests run.
 
 ## Build, Test, and Development Commands
 
-- Build all modules + unit tests: `./mvnw clean install`
-- Run demo locally: `./mvnw -pl dramafinder-demo spring-boot:run` (serves
-  at http://localhost:8080)
-- Run integration tests (Failsafe, includes `**/*IT.java`):
-  `./mvnw -B verify --file pom.xml`
-- Run a single test:
-    - IT: `./mvnw -Dit.test=MyViewIT -Pit verify`
+- Build + unit tests: `./mvnw clean install`
+- Run unit tests only: `./mvnw test`
+- Run integration tests (Failsafe, `**/*IT.java`, requires the `it` profile):
+  `./mvnw -Pit verify`
+- Run a single IT: `./mvnw -Dit.test=MyViewIT -Pit verify`
+- Debug an IT with a visible browser: `./mvnw -Pdebug-ui -Dit.test=MyViewIT verify`
+  (or `-Dheadless=false`)
 
 ## Coding Style & Naming Conventions
 
 - Java 21; 4-space indent; organize imports; no trailing whitespace.
-- Packages: lowercase (`org.vaadin.dramafinder`); classes: `PascalCase`;
+- Packages: lowercase (`org.vaadin.addons.dramafinder`); classes: `PascalCase`;
   methods/fields: `camelCase`; constants: `UPPER_SNAKE_CASE`.
 - Public API in `dramafinder` should be small, cohesive, and documented with
   Javadoc.
@@ -34,6 +39,10 @@
   (especially for assertion helpers where `null` implies absence).
 - Use `{@inheritDoc}` on simple overrides (e.g., locator accessors) to avoid
   duplication.
+- An override that *changes* behaviour needs a sentence of its own instead of
+  a bare `{@inheritDoc}`: the generated `api-reference.md` lists an override
+  only when it documents itself or redefines a `VaadinElement` method, so an
+  undocumented one stays invisible to anyone reading the reference.
 - Keep Javadoc concise and consistent; prefer present tense and active voice.
 
 ## Testing Guidelines
@@ -141,7 +150,38 @@ public void assertMinLength(Integer min) {
 }
 ```
 
-#### 7. ARIA Role Mismatch
+#### 7. Disabled State on Non-Form Hosts
+- **Pitfall**: Implementing `HasEnabledElement` on a component whose host is not
+  a native form control, e.g. `vaadin-side-nav-item` (`listitem`),
+  `vaadin-list-box` (`list`) or a plain container. Playwright only treats an
+  element as disabled when it is a native control with `disabled`, or has
+  `aria-disabled="true"` on a role that supports it (`button`, `link`,
+  `menuitem`, `tab`, `option`, …), so `isEnabled()` returns `true` on a disabled
+  Vaadin host even though `DisabledMixin` set `disabled` on it.
+- **Solution**: Implement `HasDisabledAttributeElement` instead. It redefines
+  `isEnabled()`, `assertEnabled()` and `assertDisabled()` in terms of the
+  `disabled` attribute of `getEnabledLocator()`, so the getter and the
+  assertions stay consistent. Never override only the assert methods: that
+  leaves `isEnabled()` / `isEnabled(boolean)` reporting the opposite.
+- Keep plain `HasEnabledElement` when the enablement locator is a native form
+  control (typically via `getEnabledLocator()` returning `getInputLocator()`) or
+  has a role Playwright understands — its checks also cover `aria-disabled` and
+  state inherited from an ancestor `fieldset`.
+```java
+// Host is <vaadin-side-nav-item role="listitem"> - attribute based
+public class SideNavigationItemElement extends VaadinElement
+        implements HasDisabledAttributeElement { }
+
+// Enablement lives on the inner <input> - Playwright based
+public class TextFieldElement extends VaadinElement implements HasEnabledElement {
+    @Override
+    public Locator getEnabledLocator() {
+        return getInputLocator();
+    }
+}
+```
+
+#### 8. ARIA Role Mismatch
 - **Pitfall**: Using wrong ARIA role in `getByRole()` lookups.
 - **Solution**: Check the actual role of the internal element:
   - Text inputs: `TEXTBOX`
@@ -150,6 +190,49 @@ public void assertMinLength(Integer min) {
   - Buttons: `BUTTON`
   - Checkboxes: `CHECKBOX`
   - Radio buttons: `RADIO`
+
+#### 9. Theme Variant Order
+- **Pitfall**: Asserting a single theme variant with `assertTheme("primary")` on
+  a component that has several. Vaadin combines every applied variant into one
+  space-separated `theme` attribute, so a component with `LUMO_PRIMARY` and
+  `LUMO_SMALL` fails `assertTheme("primary")` — the attribute holds both.
+- **Solution**: `assertTheme(...)` is for the whole attribute; it compares the
+  variants as an unordered set, so `"small primary"` and `"primary small"` both
+  pass, but every applied variant has to be listed. To assert one variant among
+  several, use `HasThemeElement.assertHasThemeVariant(...)` /
+  `assertHasNoThemeVariant(...)`, which match the variant as a whole token
+  regardless of the others. Both are inherited by every element implementing
+  `HasThemeElement` — never re-implement the token regex per element.
+
+#### 10. Substring Label Matching
+- **Pitfall**: Keying an item lookup on `setName(label)`, `getByText(label)` or
+  `setHasText(label)` and closing with `.first()`. All three are
+  case-insensitive substring matches, so `getCheckbox("Option 1")` happily
+  returns the `"Option 10"` checkbox when that one comes first in the DOM, and
+  `assertSelected("Option 1")` then passes against it — a green test over a
+  wrong UI state.
+- **Solution**: For item-within-container lookups use `ItemLocator` /
+  `AccessibleNameLocator.findExact`, which match the full label and leave the
+  locator unnarrowed so duplicates raise a strict-mode error. See "Exact vs
+  substring matching" under the Scoped Lookup Pattern for which lookups stay
+  substring-based.
+```java
+// Bad: "Option 1" also matches "Option 10", and .first() hides it
+locator.getByRole(AriaRole.TAB, new Locator.GetByRoleOptions().setName(label)).first();
+
+// Good: full label, strict-mode error on a real duplicate
+ItemLocator.byExactName(getLocator(), AriaRole.TAB, label);
+```
+
+#### 11. Light-DOM Text vs `textContent`
+- **Pitfall**: Reading a component's own text with `locator.textContent()` (or
+  Playwright's `hasText`) when the component also renders content in its shadow
+  DOM or accepts slotted children. Both traverse the shadow DOM and include
+  slotted light-DOM text, so `vaadin-badge` with an icon and a number reports
+  the icon glyph and the number as part of its text.
+- **Solution**: Read only the child nodes that carry no `slot` attribute, e.g.
+  via `evaluate` over `childNodes` (see `BadgeElement.getText()`), or scope a
+  locator with `> :not([slot])` (see `CardElement.getContentLocator()`).
 
 ### Design Patterns
 
@@ -227,6 +310,53 @@ public static ButtonElement getByText(Page page, String text) { ... }
 public static ButtonElement getByText(Locator locator, String text) { ... }
 ```
 
+##### Exact vs substring matching
+
+Playwright's `setName(...)`, `getByText(...)` and `setHasText(...)` all default to
+a **case-insensitive substring** match, so `"Option 1"` also matches
+`"Option 10"`. Combined with a trailing `.first()` that silently resolves to
+whichever matched element comes first in the DOM — and, because the assertion
+helper re-runs the same lookup, a test then goes green against the wrong
+element. The library therefore splits label-keyed lookups in two:
+
+- **Item-within-container lookups** — one option out of a combo box, select,
+  list box or checkbox/radio group, one tab, one menu item, one side-nav item,
+  one accordion panel, one breadcrumb item, one upload row. The caller passes the
+  item's whole label, so these match **exactly** and carry **no `.first()`**: a
+  genuine duplicate fails with a Playwright strict-mode error instead of being
+  masked. Build them with `ItemLocator` rather than hand-rolling the chain:
+  ```java
+  // ARIA role + exact accessible name
+  ItemLocator.byExactName(getLocator(), AriaRole.TAB, label);
+  // exact visible text, matching the item or an element inside it
+  ItemLocator.byExactText(getLocator(), FIELD_ITEM_TAG_NAME, label);
+  // exact visible text of the item ALONE, for items that nest items
+  ItemLocator.byOwnExactText(getLocator(), FIELD_TAG_NAME, label);
+  // exact accessible name of a field inside a container
+  AccessibleNameLocator.findExact(locator, FIELD_TAG_NAME, AriaRole.CHECKBOX, label);
+  ```
+  `byExactText` matches an element whose whole subtree text equals the label, so
+  it also finds a label wrapped in a renderer's `<span>`; `byOwnExactText`
+  matches only the item's own text nodes, which is what a container whose items
+  can hold items of the same kind (`vaadin-side-nav-item`) needs — matching the
+  subtree would read a parent as `"Parent Child 1 Child 2"`.
+- **Page-level factories and `getByText` helpers** — `getByLabel(Page, String)`
+  on a field, `AccessibleNameLocator.find(...)`, and the helpers whose Javadoc
+  says "contains" (`BadgeElement`, `NotificationElement`, `TooltipElement`,
+  `VirtualListElement.getItemByText`). These keep substring matching and
+  `.first()` as a deliberate convenience: a caller may want to pass part of a
+  long label, and a virtual-list item renders an arbitrary component with no
+  single label. Say so in the Javadoc — "matched case-insensitively as a
+  substring" — so it reads as a choice rather than a Playwright default that
+  leaked through.
+
+`MessageListElement.getMessageByUserName` is the documented exception among item
+lookups: it matches the author exactly but keeps `.first()`, because several
+messages from one author is normal data, not an ambiguity.
+
+Two consequences worth spelling out in the Javadoc of an exact lookup: the match
+becomes **case-sensitive**, and a lookup keyed on a partial label stops working.
+
 ### Best Practices
 
 1. **Prefer ARIA roles over tag names** for element lookup when possible.
@@ -245,4 +375,31 @@ public static ButtonElement getByText(Locator locator, String text) { ... }
 - Follow this file's conventions for any edits. Keep patches minimal and
   focused.
 - Use `*IT.java` only for end-to-end tests executed by Failsafe.
-- Refer to `docs/specifications/` for detailed element API documentation.
+- **Never decompile the DramaFinder jar to discover its API.**
+  The complete public API (test setup, every element, signatures, one-line
+  descriptions) is in `skills/vaadin-playwright-test/api-reference.md`,
+  auto-generated from source by `tools/generate-api-reference.java`. To look
+  something up, **grep that file for the element name and read only its
+  `### <Name>Element` section** — don't read the whole file. In a consumer
+  project where it isn't checked out, fetch it (one request) from
+  `https://raw.githubusercontent.com/parttio/dramafinder/master/skills/vaadin-playwright-test/api-reference.md`,
+  or, with no network, read the copy bundled in the jar:
+  `unzip -p ~/.m2/repository/org/vaadin/addons/dramafinder/*/dramafinder-*.jar META-INF/dramafinder/api-reference.md`.
+- The build copies `api-reference.md` and `agent-api-reference.md` into the jar
+  under `META-INF/dramafinder/` (see `maven-resources-plugin` in `pom.xml`), next
+  to the hand-written `src/main/resources/META-INF/dramafinder/START-HERE.md`.
+  That bundled set is the only documentation an offline agent can reach — Maven
+  puts nothing but the jar and the pom in `~/.m2` — so keep it working:
+  `DocumentationBundledInJarTest` fails if a file stops being bundled, and
+  `START-HERE.md` needs a manual look whenever the setup API or the pitfalls
+  change.
+- `api-reference.md` is generated — never edit it by hand. After changing any
+  element's public API, regenerate it (`jbang tools/generate-api-reference.java`)
+  and commit the result; CI fails if it is stale.
+- The `org.vaadin.addons.dramafinder.agent` helpers (`VisualVerificationTest`,
+  `AgentReporting`, …) have their own generated reference at
+  `skills/vaadin-playwright-screenshot/agent-api-reference.md`
+  (`tools/generate-agent-api-reference.java`; same never-edit-by-hand, CI-enforced
+  rule). After changing that package's public API, regenerate and commit it.
+- Refer to `docs/specifications/` for the prose docs on components with
+  non-obvious behaviour (Grid, TreeGrid, VirtualList, and extension guidance).

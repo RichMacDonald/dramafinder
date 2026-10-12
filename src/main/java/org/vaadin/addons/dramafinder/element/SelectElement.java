@@ -6,6 +6,8 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import org.vaadin.addons.dramafinder.element.shared.FocusableElement;
+import org.vaadin.addons.dramafinder.element.utils.AccessibleNameLocator;
+import org.vaadin.addons.dramafinder.element.utils.ItemLocator;
 import org.vaadin.addons.dramafinder.element.shared.HasAriaLabelElement;
 import org.vaadin.addons.dramafinder.element.shared.HasEnabledElement;
 import org.vaadin.addons.dramafinder.element.shared.HasInputFieldElement;
@@ -97,11 +99,6 @@ public class SelectElement extends VaadinElement
     }
 
     @Override
-    public Locator getLabelLocator() {
-        return getLocator().locator("label[slot=\"label\"]").first();
-    }
-
-    @Override
     public void assertPlaceholder(String placeholder) {
         assertThat(getInputLocator()).hasAttribute("placeholder", "");
         assertThat(getInputLocator()).hasText(placeholder);
@@ -117,26 +114,43 @@ public class SelectElement extends VaadinElement
         assertThat(getInputLocator()).hasText(Objects.requireNonNullElse(expected, ""));
     }
 
+    /**
+     * Locator for an overlay item, matched on its full label. {@code "Option 1"}
+     * does not resolve to {@code "Option 10"}, and two items sharing the label
+     * fail with a Playwright strict-mode error.
+     */
     private static Locator getSelectItem(Locator locator, String label) {
-        return locator.locator(FIELD_ITEM_TAG_NAME)
-                .filter(new Locator.FilterOptions()
-                        .setHasText(label)).first();
+        return ItemLocator.byExactText(locator, FIELD_ITEM_TAG_NAME, label);
     }
 
     /**
-     * Get the {@code SelectElement} by its label.
+     * Get the {@code SelectElement} by its accessible name, searching the entire page.
+     * <p>
+     * Matches fields identified by a visible label, an {@code aria-label} attribute, or a
+     * placeholder text (used as a fallback when no label is present).
      *
      * @param page  the Playwright page
-     * @param label the accessible label of the field
+     * @param label the accessible name of the field
      * @return the matching {@code SelectElement}
      */
     public static SelectElement getByLabel(Page page, String label) {
         return new SelectElement(
-                page.locator(FIELD_TAG_NAME)
-                        .filter(new Locator.FilterOptions()
-                                .setHas(page.getByRole(AriaRole.BUTTON,
-                                        new Page.GetByRoleOptions().setName(label)))
-                        ).first());
+                AccessibleNameLocator.find(page, FIELD_TAG_NAME, AriaRole.BUTTON, label));
+    }
+
+    /**
+     * Get the {@code SelectElement} by its accessible name within a given scope.
+     * <p>
+     * Matches fields identified by a visible label, an {@code aria-label} attribute, or a
+     * placeholder text (used as a fallback when no label is present).
+     *
+     * @param locator the locator to search within
+     * @param label   the accessible name of the field
+     * @return the matching {@code SelectElement}
+     */
+    public static SelectElement getByLabel(Locator locator, String label) {
+        return new SelectElement(
+                AccessibleNameLocator.find(locator, FIELD_TAG_NAME, AriaRole.BUTTON, label));
     }
 
 }
